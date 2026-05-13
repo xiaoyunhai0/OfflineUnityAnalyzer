@@ -1,0 +1,199 @@
+<Window
+    x:Class="OfflineUnityAnalyzer.App.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="OfflineUnityAnalyzer"
+    Width="1240"
+    Height="780"
+    MinWidth="1020"
+    MinHeight="680">
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Background="#182536" Padding="24,18">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
+        <StackPanel Spacing="5">
+          <TextBlock Text="OfflineUnityAnalyzer" Foreground="White" FontSize="24" FontWeight="SemiBold" />
+          <TextBlock Text="离线、只读地生成 Unity 项目结构地图" Foreground="#D9E2EC" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Name="OpenOutputButton" Classes="ghost" Content="打开输出" Click="OpenOutputButton_Click" />
+          <Button Name="OpenReportButton" Classes="ghost" Content="打开报告" Click="OpenReportButton_Click" />
+          <Button Name="OpenReleaseButton" Classes="ghost" Content="版本说明" Click="OpenReleaseButton_Click" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="430,*" Background="#F3F6FA">
+      <Border Grid.Column="0" Background="White" Padding="22" BorderBrush="#D9E2EC" BorderThickness="0,0,1,0">
+        <ScrollViewer>
+          <StackPanel Spacing="16">
+            <StackPanel Spacing="4">
+              <TextBlock Text="新建分析" FontSize="19" FontWeight="SemiBold" />
+              <TextBlock Text="优先自动发现路径；输出目录会放在文档目录下，避免写入原项目。" TextWrapping="Wrap" Foreground="#52606D" />
+            </StackPanel>
+
+            <Border Background="#F8FAFC" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="6" Padding="12">
+              <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Unity 项目根目录" FontWeight="SemiBold" />
+                    <TextBox Name="UnityPathBox" Classes="pathBox" Watermark="例如 D:\Projects\Game" TextChanged="InputPath_TextChanged" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="选择" VerticalAlignment="Bottom" Click="BrowseUnityButton_Click" />
+                </Grid>
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <Button Name="AutoDiscoverButton" Classes="secondary" Content="自动发现路径" HorizontalAlignment="Stretch" Click="AutoDiscoverButton_Click" />
+                  <Button Grid.Column="1" Name="ResetButton" Classes="quiet" Content="清空" Click="ResetButton_Click" />
+                </Grid>
+              </Grid>
+            </Border>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="C# 代码根目录" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Name="CodePathBox" Classes="pathBox" Watermark="自动填入 Assets、Packages、本地包等；可用分号追加" TextChanged="InputPath_TextChanged" />
+                <Button Grid.Column="1" Content="追加" Click="BrowseCodeButton_Click" />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="DLL / HybridCLR 根目录" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Name="DllPathBox" Classes="pathBox" Watermark="自动识别 Plugins、HybridCLR、HotUpdate 等目录" TextChanged="InputPath_TextChanged" />
+                <Button Grid.Column="1" Content="追加" Click="BrowseDllButton_Click" />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="YooAsset Manifest 根目录" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Name="YooAssetPathBox" Classes="pathBox" Watermark="自动识别 ServerData、Bundles、PackageManifest 文件目录" TextChanged="InputPath_TextChanged" />
+                <Button Grid.Column="1" Content="追加" Click="BrowseYooAssetButton_Click" />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="输出目录" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Name="OutputPathBox" Classes="pathBox" Watermark="例如 D:\AnalyzerOutput" TextChanged="InputPath_TextChanged" />
+                <Button Grid.Column="1" Content="选择" Click="BrowseOutputButton_Click" />
+              </Grid>
+            </StackPanel>
+
+            <Border Name="GuardPanel" Background="#E7F5EF" BorderBrush="#A7D8C9" BorderThickness="1" CornerRadius="6" Padding="12">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <TextBlock Name="GuardIconText" Text="OK" Foreground="#0F766E" FontWeight="Bold" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Name="GuardTitleText" Text="只读保护已启用" FontWeight="SemiBold" Foreground="#0F766E" />
+                  <TextBlock Name="GuardDetailText" Text="分析只读取输入根目录，所有结果只写入输出目录。" TextWrapping="Wrap" Foreground="#315B52" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <Button
+                  Name="AnalyzeButton"
+                  Classes="primary"
+                  Content="开始分析"
+                  HorizontalAlignment="Stretch"
+                  Click="AnalyzeButton_Click" />
+              <Button
+                  Grid.Column="1"
+                  Name="CancelButton"
+                  Classes="quiet"
+                  Content="停止"
+                  IsEnabled="False"
+                  Click="CancelButton_Click" />
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" Margin="22" RowSpacing="16">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="18">
+          <StackPanel Spacing="4">
+            <TextBlock Text="项目理解工作台" FontSize="21" FontWeight="SemiBold" />
+            <TextBlock Name="StatusText" Text="选择 Unity 项目根目录后，点击自动发现路径。" Foreground="#52606D" />
+          </StackPanel>
+          <ProgressBar Name="ProgressBar" Grid.Column="1" Width="230" Height="12" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="0" />
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+          <Border Classes="metric">
+            <StackPanel Spacing="4">
+              <TextBlock Text="已发现输入" Foreground="#52606D" FontSize="12" />
+              <TextBlock Name="InputCountText" Text="0" FontSize="22" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="metric">
+            <StackPanel Spacing="4">
+              <TextBlock Text="项目线索" Foreground="#52606D" FontSize="12" />
+              <TextBlock Name="ClueCountText" Text="0" FontSize="22" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="metric">
+            <StackPanel Spacing="4">
+              <TextBlock Text="分析阶段" Foreground="#52606D" FontSize="12" />
+              <TextBlock Name="StageCountText" Text="0 / 11" FontSize="22" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="3" Classes="metric">
+            <StackPanel Spacing="4">
+              <TextBlock Text="最近结果" Foreground="#52606D" FontSize="12" />
+              <TextBlock Name="LastResultText" Text="未运行" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+          <Grid RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="自动发现摘要" FontSize="17" FontWeight="SemiBold" />
+              <Button Grid.Column="1" Classes="quiet" Content="复制命令" Click="CopyCommandButton_Click" />
+            </Grid>
+            <Border Grid.Row="1" Margin="0,10,0,0" Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="6" Padding="14">
+              <ScrollViewer>
+                <TextBlock Name="DiscoveryText" Text="等待选择项目。" TextWrapping="Wrap" Foreground="#334E68" />
+              </ScrollViewer>
+            </Border>
+          </Grid>
+
+          <Grid Grid.Column="1" RowDefinitions="Auto,*">
+            <TextBlock Text="阶段进度" FontSize="17" FontWeight="SemiBold" />
+            <Border Grid.Row="1" Margin="0,10,0,0" Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="6" Padding="12">
+              <ScrollViewer>
+                <ItemsControl Name="StageList">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="84,*,Auto" ColumnSpacing="10" Margin="0,0,0,8">
+                        <Border Background="{Binding BadgeBackground}" CornerRadius="4" Padding="7,4" MinWidth="76">
+                          <TextBlock Text="{Binding Status}" Foreground="{Binding BadgeForeground}" FontSize="12" HorizontalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="2">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Message}" Foreground="#52606D" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding WarningSummary}" Foreground="#B45309" FontSize="12" VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <Grid Grid.Row="3" RowDefinitions="Auto,*" Height="170">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="运行日志" FontSize="17" FontWeight="SemiBold" />
+            <Button Grid.Column="1" Classes="quiet" Name="ClearLogButton" Content="清空日志" Click="ClearLogButton_Click" />
+          </Grid>
+          <Border Grid.Row="1" Margin="0,10,0,0" Background="#101827" CornerRadius="6" Padding="12">
+            <ScrollViewer Name="LogScrollViewer">
+              <TextBlock Name="LogText" Text="选择 Unity 项目根目录，GUI 会自动发现 Assets、Packages、Plugins、HybridCLR 和 YooAsset 相关路径。" Foreground="#D9E2EC" FontFamily="Consolas, Cascadia Mono, Microsoft YaHei UI, monospace" FontSize="12" TextWrapping="Wrap" />
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

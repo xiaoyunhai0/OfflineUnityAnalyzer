@@ -6,10 +6,11 @@ The v1 product target is documented in [docs/product-architecture-v1.md](docs/pr
 
 ## Current State
 
-This repository is at the v0.1 skeleton stage:
+This repository currently includes:
 
 - .NET 8 solution and project layout
-- GUI and CLI executable projects
+- Avalonia desktop GUI for starting analysis, auto-discovering paths, viewing progress, and opening reports
+- CLI executable for repeatable offline analysis
 - core configuration models
 - readonly path guard
 - safe output-only file system wrapper
@@ -27,7 +28,19 @@ This repository is at the v0.1 skeleton stage:
 - config/reference shallow indexing for JSON, CSV, XML, and readable bytes
 - offline JSON data export
 - offline static HTML report
-- placeholder viewer server, indexing, and app shells
+- placeholder viewer server and indexing shells
+
+## GUI Usage
+
+Run `OfflineUnityAnalyzer.exe` from a release package, then:
+
+1. Select the Unity project root.
+2. Click `自动发现路径`.
+3. Check the discovered C# code roots, DLL/HybridCLR roots, and YooAsset manifest roots.
+4. Keep the suggested output directory or choose another directory outside the project.
+5. Click `开始分析`.
+
+The GUI keeps the default flow automatic: it looks for `Assets`, `Packages`, `ProjectSettings`, local code folders, `Plugins`, `HybridCLR`, `ServerData`, `Bundles`, YooAsset package manifests, `.asmdef`, `.csproj`, and `.sln` clues. It launches the bundled CLI as the analysis worker and shows live stage progress.
 
 ## Intended Commands
 
