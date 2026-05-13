@@ -16,7 +16,13 @@ This repository is at the v0.1 skeleton stage:
 - analyzer pipeline contracts
 - safety preflight stage
 - readonly file scan stage
-- placeholder viewer server, export, indexing, and app shells
+- basic C# source type index
+- basic DLL and `.dll.bytes` metadata index
+- basic Unity YAML `m_Script` reference scan
+- HybridCLR and YooAsset evidence detection
+- offline JSON data export
+- offline static HTML report
+- placeholder viewer server, indexing, and app shells
 
 ## Intended Commands
 
@@ -34,6 +40,15 @@ During v0.1 the analyzer writes:
 ```text
 AnalyzerOutput/
   summary.json
+  data/
+    types.json
+    assemblies.json
+    unity-script-refs.json
+    hybridclr.json
+    yooasset.json
+    diagnostics.json
+  report/
+    report.html
   logs/
     readonly-preflight.txt
 ```

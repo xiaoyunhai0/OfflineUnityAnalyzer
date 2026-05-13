@@ -4,6 +4,7 @@ using OfflineUnityAnalyzer.Core.Models;
 using OfflineUnityAnalyzer.Core.Pipeline;
 using OfflineUnityAnalyzer.Core.Safety;
 using OfflineUnityAnalyzer.ViewerServer;
+using Microsoft.Extensions.Hosting;
 
 namespace OfflineUnityAnalyzer.Cli
 {
@@ -119,9 +120,11 @@ namespace OfflineUnityAnalyzer.Cli
                 Port = port
             });
 
-            Console.WriteLine("Viewer server listening on 127.0.0.1.");
+            await app.StartAsync();
+            var address = app.Urls.FirstOrDefault() ?? "http://127.0.0.1";
+            Console.WriteLine($"Viewer server listening: {address}");
             Console.WriteLine("Press Ctrl+C to stop.");
-            await app.RunAsync();
+            await app.WaitForShutdownAsync();
             return 0;
         }
 
@@ -178,6 +181,7 @@ namespace OfflineUnityAnalyzer.Cli
             Console.WriteLine("Analysis summary");
             Console.WriteLine($"  Output: {result.OutputRoot}");
             Console.WriteLine($"  Files:  {result.FileCount}");
+            Console.WriteLine($"  Report: {Path.Combine(result.OutputRoot, "report", "report.html")}");
             Console.WriteLine($"  Time:   {(result.FinishedAtUtc - result.StartedAtUtc).TotalSeconds:F1}s");
 
             foreach (var stage in result.Stages)
