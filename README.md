@@ -21,6 +21,7 @@ This repository is at the v0.1 skeleton stage:
 - automatic module inference from project model, namespaces, assemblies, and asset paths
 - basic DLL and `.dll.bytes` metadata index
 - basic Unity YAML `m_Script` reference scan
+- Unity YAML object, GameObject, Component, and asset reference export
 - HybridCLR and YooAsset evidence detection
 - offline JSON data export
 - offline static HTML report
@@ -48,6 +49,10 @@ AnalyzerOutput/
     modules.json
     assemblies.json
     unity-script-refs.json
+    unity-objects.json
+    unity-gameobjects.json
+    unity-components.json
+    unity-asset-refs.json
     hybridclr.json
     yooasset.json
     diagnostics.json

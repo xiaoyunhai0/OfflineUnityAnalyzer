@@ -32,6 +32,10 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         WriteJson(context, "data/assemblies.json", context.Assemblies);
         WriteJson(context, "data/unity-assets.json", context.UnityAssets);
         WriteJson(context, "data/unity-script-refs.json", context.UnityScriptReferences);
+        WriteJson(context, "data/unity-objects.json", context.UnityObjects);
+        WriteJson(context, "data/unity-gameobjects.json", context.UnityGameObjects);
+        WriteJson(context, "data/unity-components.json", context.UnityComponents);
+        WriteJson(context, "data/unity-asset-refs.json", context.UnityAssetReferences);
         WriteJson(context, "data/hybridclr.json", context.HybridClr);
         WriteJson(context, "data/yooasset.json", context.YooAsset);
         WriteJson(context, "data/diagnostics.json", context.Diagnostics);
@@ -62,6 +66,10 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             csprojCount = context.ProjectModel.CSharpProjects.Count,
             moduleCount = context.Modules.Count,
             unityAssetCount = context.UnityAssets.Count,
+            unityObjectCount = context.UnityObjects.Count,
+            unityGameObjectCount = context.UnityGameObjects.Count,
+            unityComponentCount = context.UnityComponents.Count,
+            unityAssetReferenceCount = context.UnityAssetReferences.Count,
             unityScriptReferenceCount = context.UnityScriptReferences.Count,
             unresolvedUnityScriptReferenceCount = context.UnityScriptReferences.Count(reference => reference.ResolvedScriptPath is null),
             diagnosticCount = context.Diagnostics.Count,
@@ -95,7 +103,10 @@ public sealed class ReportGenerationStage : IAnalyzerStage
                 .OrderByDescending(type => type.IsMonoBehaviour)
                 .ThenBy(type => type.FullName)
                 .Take(50),
+            unityGameObjects = context.UnityGameObjects.Take(80),
+            unityComponents = context.UnityComponents.Take(80),
             unityReferences = context.UnityScriptReferences.Take(50),
+            unityAssetReferences = context.UnityAssetReferences.Take(80),
             hybridClr = context.HybridClr,
             yooAsset = context.YooAsset
         };
@@ -142,8 +153,20 @@ public sealed class ReportGenerationStage : IAnalyzerStage
       <div id="types"></div>
     </section>
     <section class="wide">
+      <h2>Unity GameObjects</h2>
+      <div id="gameobjects"></div>
+    </section>
+    <section class="wide">
+      <h2>Unity Components</h2>
+      <div id="components"></div>
+    </section>
+    <section class="wide">
       <h2>Unity Script References</h2>
       <div id="unityrefs"></div>
+    </section>
+    <section class="wide">
+      <h2>Unity Asset References</h2>
+      <div id="assetrefs"></div>
     </section>
     <section class="wide">
       <h2>Diagnostics</h2>
@@ -291,6 +314,10 @@ code {
     ["Asmdefs", summary.asmdefCount],
     ["Modules", summary.moduleCount],
     ["Unity Assets", summary.unityAssetCount],
+    ["Unity Objects", summary.unityObjectCount],
+    ["GameObjects", summary.unityGameObjectCount],
+    ["Components", summary.unityComponentCount],
+    ["Asset Refs", summary.unityAssetReferenceCount],
     ["Unity Script Refs", summary.unityScriptReferenceCount],
     ["Unresolved Refs", summary.unresolvedUnityScriptReferenceCount],
     ["Diagnostics", summary.diagnosticCount],
@@ -336,11 +363,33 @@ code {
     ["Unity", value => [value.isMonoBehaviour ? "MonoBehaviour" : "", value.isScriptableObject ? "ScriptableObject" : ""].filter(Boolean).join(", ")]
   ]);
 
+  renderTable("gameobjects", data.unityGameObjects || [], [
+    ["Asset", value => shortPath(value.assetPath)],
+    ["Name", "name"],
+    ["Local ID", "localId"],
+    ["Components", value => (value.componentLocalIds || []).length]
+  ]);
+
+  renderTable("components", data.unityComponents || [], [
+    ["Asset", value => shortPath(value.assetPath)],
+    ["Component", "typeName"],
+    ["GameObject", "gameObjectName"],
+    ["Script", value => value.resolvedType || shortPath(value.resolvedScriptPath) || value.scriptGuid || ""]
+  ]);
+
   renderTable("unityrefs", data.unityReferences || [], [
     ["Asset", value => shortPath(value.assetPath)],
     ["GUID", "scriptGuid"],
     ["Resolved", value => value.resolvedType || shortPath(value.resolvedScriptPath) || ""],
     ["Confidence", "confidence"]
+  ]);
+
+  renderTable("assetrefs", data.unityAssetReferences || [], [
+    ["Asset", value => shortPath(value.assetPath)],
+    ["Owner", "ownerType"],
+    ["Field", "fieldName"],
+    ["Target", value => shortPath(value.resolvedPath) || value.guid || value.fileId || ""],
+    ["Kind", "referenceKind"]
   ]);
 
   renderTable("diagnostics", data.diagnostics || [], [

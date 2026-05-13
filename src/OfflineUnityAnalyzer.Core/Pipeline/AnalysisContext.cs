@@ -13,6 +13,10 @@ public sealed class AnalysisContext
     private readonly List<AssemblyMetadataInfo> _assemblies = new();
     private readonly List<UnityAssetInfo> _unityAssets = new();
     private readonly List<UnityScriptReferenceInfo> _unityScriptReferences = new();
+    private readonly List<UnityObjectInfo> _unityObjects = new();
+    private readonly List<UnityGameObjectInfo> _unityGameObjects = new();
+    private readonly List<UnityComponentInfo> _unityComponents = new();
+    private readonly List<UnityAssetReferenceInfo> _unityAssetReferences = new();
     private readonly List<DiagnosticInfo> _diagnostics = new();
     private readonly List<ModuleInfo> _modules = new();
 
@@ -42,6 +46,14 @@ public sealed class AnalysisContext
     public IReadOnlyList<UnityAssetInfo> UnityAssets => _unityAssets;
 
     public IReadOnlyList<UnityScriptReferenceInfo> UnityScriptReferences => _unityScriptReferences;
+
+    public IReadOnlyList<UnityObjectInfo> UnityObjects => _unityObjects;
+
+    public IReadOnlyList<UnityGameObjectInfo> UnityGameObjects => _unityGameObjects;
+
+    public IReadOnlyList<UnityComponentInfo> UnityComponents => _unityComponents;
+
+    public IReadOnlyList<UnityAssetReferenceInfo> UnityAssetReferences => _unityAssetReferences;
 
     public IReadOnlyList<DiagnosticInfo> Diagnostics => _diagnostics;
 
@@ -86,6 +98,26 @@ public sealed class AnalysisContext
     public void AddUnityScriptReference(UnityScriptReferenceInfo reference)
     {
         _unityScriptReferences.Add(reference);
+    }
+
+    public void AddUnityObject(UnityObjectInfo unityObject)
+    {
+        _unityObjects.Add(unityObject);
+    }
+
+    public void AddUnityGameObject(UnityGameObjectInfo gameObject)
+    {
+        _unityGameObjects.Add(gameObject);
+    }
+
+    public void AddUnityComponent(UnityComponentInfo component)
+    {
+        _unityComponents.Add(component);
+    }
+
+    public void AddUnityAssetReference(UnityAssetReferenceInfo reference)
+    {
+        _unityAssetReferences.Add(reference);
     }
 
     public void AddDiagnostic(DiagnosticInfo diagnostic)
