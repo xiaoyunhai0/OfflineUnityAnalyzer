@@ -81,7 +81,7 @@ namespace OfflineUnityAnalyzer.Cli
                 throw new ArgumentException("Output path is required. Use --out <path> or config.output.");
             }
 
-            var reporter = options.ProgressJson
+            IProgressReporter reporter = options.ProgressJson
                 ? new JsonProgressReporter()
                 : new ConsoleProgressReporter();
 
