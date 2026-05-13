@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+
+publish/
+artifacts/
+TestResults/
+
+AnalyzerOutput/
+*.log
+
