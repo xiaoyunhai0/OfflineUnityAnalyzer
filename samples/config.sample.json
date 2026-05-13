@@ -1,0 +1,35 @@
+{
+  "codeRoots": [
+    "D:/GameCode"
+  ],
+  "solutionPath": "D:/GameCode/GameLogic.sln",
+  "unityProject": "D:/UnityProject",
+  "dllRoots": [
+    "D:/UnityProject/Assets/Plugins"
+  ],
+  "yooAssetManifestRoots": [
+    "D:/UnityProject/ServerData"
+  ],
+  "output": "D:/AnalyzerOutput",
+  "strictReadonly": true,
+  "analyzeCallGraph": true,
+  "excludePatterns": [
+    ".git",
+    ".vs",
+    ".idea",
+    "bin",
+    "obj",
+    "Library",
+    "Temp",
+    "Logs",
+    "Build",
+    "Builds",
+    "Generated",
+    "node_modules"
+  ],
+  "report": {
+    "generateHtml": true,
+    "generateJson": true,
+    "openAfterFinish": false
+  }
+}
