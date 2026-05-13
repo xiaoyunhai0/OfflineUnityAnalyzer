@@ -12,6 +12,7 @@ public sealed class ReportGenerationStage : IAnalyzerStage
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
@@ -25,6 +26,8 @@ public sealed class ReportGenerationStage : IAnalyzerStage
 
         WriteJson(context, "data/summary.json", summary);
         WriteJson(context, "data/files.json", context.Files);
+        WriteJson(context, "data/project-model.json", context.ProjectModel);
+        WriteJson(context, "data/modules.json", context.Modules);
         WriteJson(context, "data/types.json", context.SourceTypes);
         WriteJson(context, "data/assemblies.json", context.Assemblies);
         WriteJson(context, "data/unity-assets.json", context.UnityAssets);
@@ -34,8 +37,9 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         WriteJson(context, "data/diagnostics.json", context.Diagnostics);
 
         context.FileSystem.WriteAllTextToOutput("report/assets/style.css", BuildCss());
-        context.FileSystem.WriteAllTextToOutput("report/assets/app.js", BuildAppJs(summary));
-        context.FileSystem.WriteAllTextToOutput("report/report.html", BuildHtml(summary));
+        var reportData = BuildReportData(context, summary);
+        context.FileSystem.WriteAllTextToOutput("report/assets/app.js", BuildAppJs());
+        context.FileSystem.WriteAllTextToOutput("report/report.html", BuildHtml(reportData));
 
         return Task.FromResult(new AnalysisStageResult(
             Kind,
@@ -53,6 +57,10 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             monoBehaviourCount = context.SourceTypes.Count(type => type.IsMonoBehaviour),
             scriptableObjectCount = context.SourceTypes.Count(type => type.IsScriptableObject),
             assemblyCount = context.Assemblies.Count,
+            packageCount = context.ProjectModel.Packages.Count,
+            asmdefCount = context.ProjectModel.AssemblyDefinitions.Count,
+            csprojCount = context.ProjectModel.CSharpProjects.Count,
+            moduleCount = context.Modules.Count,
             unityAssetCount = context.UnityAssets.Count,
             unityScriptReferenceCount = context.UnityScriptReferences.Count,
             unresolvedUnityScriptReferenceCount = context.UnityScriptReferences.Count(reference => reference.ResolvedScriptPath is null),
@@ -74,14 +82,33 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         };
     }
 
+    private static object BuildReportData(AnalysisContext context, object summary)
+    {
+        return new
+        {
+            summary,
+            modules = context.Modules.Take(24),
+            packages = context.ProjectModel.Packages.Take(24),
+            assemblies = context.Assemblies.Take(24),
+            diagnostics = context.Diagnostics.Take(50),
+            sourceTypes = context.SourceTypes
+                .OrderByDescending(type => type.IsMonoBehaviour)
+                .ThenBy(type => type.FullName)
+                .Take(50),
+            unityReferences = context.UnityScriptReferences.Take(50),
+            hybridClr = context.HybridClr,
+            yooAsset = context.YooAsset
+        };
+    }
+
     private static void WriteJson(AnalysisContext context, string relativePath, object value)
     {
         context.FileSystem.WriteAllTextToOutput(relativePath, JsonSerializer.Serialize(value, JsonOptions));
     }
 
-    private static string BuildHtml(object summary)
+    private static string BuildHtml(object reportData)
     {
-        var summaryJson = JsonSerializer.Serialize(summary, JsonOptions);
+        var reportJson = JsonSerializer.Serialize(reportData, JsonOptions);
         return $$"""
 <!doctype html>
 <html lang="en">
@@ -98,30 +125,37 @@ public sealed class ReportGenerationStage : IAnalyzerStage
   </header>
   <main>
     <section class="grid" id="summary"></section>
+    <section class="toolbar">
+      <input id="filter" type="search" placeholder="Filter visible tables">
+    </section>
     <section>
       <h2>Project Map</h2>
       <div class="panels">
-        <article>
-          <h3>Source Types</h3>
-          <p>Open <code>../data/types.json</code> for the full type index.</p>
-        </article>
-        <article>
-          <h3>Unity References</h3>
-          <p>Open <code>../data/unity-script-refs.json</code> for script references.</p>
-        </article>
-        <article>
-          <h3>Hot Update</h3>
-          <p>HybridCLR and YooAsset evidence are exported as JSON data.</p>
-        </article>
-        <article>
-          <h3>Diagnostics</h3>
-          <p>Open <code>../data/diagnostics.json</code> for unresolved references and warnings.</p>
-        </article>
+        <article><h3>Modules</h3><div id="modules"></div></article>
+        <article><h3>Packages</h3><div id="packages"></div></article>
+        <article><h3>Assemblies</h3><div id="assemblies"></div></article>
+        <article><h3>Hot Update</h3><div id="hotupdate"></div></article>
       </div>
+    </section>
+    <section class="wide">
+      <h2>Source Types</h2>
+      <div id="types"></div>
+    </section>
+    <section class="wide">
+      <h2>Unity Script References</h2>
+      <div id="unityrefs"></div>
+    </section>
+    <section class="wide">
+      <h2>Diagnostics</h2>
+      <div id="diagnostics"></div>
+    </section>
+    <section class="wide">
+      <h2>Data Files</h2>
+      <p>Full data is available next to this report in <code>../data/</code>.</p>
     </section>
   </main>
   <script>
-    window.__OUA_SUMMARY__ = {{summaryJson}};
+    window.__OUA_REPORT__ = {{reportJson}};
   </script>
   <script src="assets/app.js"></script>
 </body>
@@ -159,6 +193,20 @@ main {
   padding: 28px;
 }
 
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.toolbar input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #bcccdc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+}
+
 .grid,
 .panels {
   display: grid;
@@ -174,6 +222,46 @@ article {
   background: #fff;
 }
 
+.wide {
+  margin-top: 22px;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  padding: 16px;
+  background: #fff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  border-bottom: 1px solid #edf2f7;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #52606d;
+  font-weight: 650;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.muted {
+  color: #697386;
+}
+
 .metric strong {
   display: block;
   font-size: 26px;
@@ -187,17 +275,21 @@ code {
 """;
     }
 
-    private static string BuildAppJs(object summary)
+    private static string BuildAppJs()
     {
         return """
 (function () {
-  const summary = window.__OUA_SUMMARY__ || {};
+  const data = window.__OUA_REPORT__ || {};
+  const summary = data.summary || {};
   const metrics = [
     ["Files", summary.fileCount],
     ["Source Types", summary.sourceTypeCount],
     ["MonoBehaviours", summary.monoBehaviourCount],
     ["ScriptableObjects", summary.scriptableObjectCount],
     ["Assemblies", summary.assemblyCount],
+    ["Packages", summary.packageCount],
+    ["Asmdefs", summary.asmdefCount],
+    ["Modules", summary.moduleCount],
     ["Unity Assets", summary.unityAssetCount],
     ["Unity Script Refs", summary.unityScriptReferenceCount],
     ["Unresolved Refs", summary.unresolvedUnityScriptReferenceCount],
@@ -212,6 +304,98 @@ code {
     card.className = "metric";
     card.innerHTML = `<strong>${value ?? 0}</strong><span>${label}</span>`;
     root.appendChild(card);
+  }
+
+  renderTable("modules", data.modules || [], [
+    ["Name", "name"],
+    ["Source", "source"],
+    ["Confidence", "confidence"],
+    ["Types", "typeCount"],
+    ["Assets", "assetCount"]
+  ]);
+
+  renderTable("packages", data.packages || [], [
+    ["Name", "name"],
+    ["Version/Source", "versionOrSource"],
+    ["Source", "source"]
+  ]);
+
+  renderTable("assemblies", data.assemblies || [], [
+    ["Name", "assemblyName"],
+    ["Kind", "kind"],
+    ["Status", "status"],
+    ["File", "fileName"]
+  ]);
+
+  renderHotUpdate();
+
+  renderTable("types", data.sourceTypes || [], [
+    ["Full Name", "fullName"],
+    ["Kind", "kind"],
+    ["Assembly", "assemblyName"],
+    ["Unity", value => [value.isMonoBehaviour ? "MonoBehaviour" : "", value.isScriptableObject ? "ScriptableObject" : ""].filter(Boolean).join(", ")]
+  ]);
+
+  renderTable("unityrefs", data.unityReferences || [], [
+    ["Asset", value => shortPath(value.assetPath)],
+    ["GUID", "scriptGuid"],
+    ["Resolved", value => value.resolvedType || shortPath(value.resolvedScriptPath) || ""],
+    ["Confidence", "confidence"]
+  ]);
+
+  renderTable("diagnostics", data.diagnostics || [], [
+    ["Severity", "severity"],
+    ["Category", "category"],
+    ["Message", "message"],
+    ["Path", value => shortPath(value.path)]
+  ]);
+
+  document.getElementById("filter").addEventListener("input", event => {
+    const query = event.target.value.toLowerCase();
+    for (const row of document.querySelectorAll("tbody tr")) {
+      row.hidden = query && !row.textContent.toLowerCase().includes(query);
+    }
+  });
+
+  function renderHotUpdate() {
+    const hybrid = data.hybridClr || {};
+    const yoo = data.yooAsset || {};
+    const root = document.getElementById("hotupdate");
+    root.innerHTML = `
+      <p><span class="pill">HybridCLR</span> ${hybrid.detected ? "Detected" : "Not found"}</p>
+      <p><span class="pill">YooAsset</span> ${yoo.detected ? "Detected" : "Not found"}</p>
+      <p class="muted">Hybrid evidence: ${(hybrid.evidence || []).length}, YooAsset manifests: ${(yoo.manifestFiles || []).length}, code refs: ${(yoo.codeReferences || []).length}</p>
+    `;
+  }
+
+  function renderTable(id, rows, columns) {
+    const root = document.getElementById(id);
+    if (!rows.length) {
+      root.innerHTML = '<p class="muted">No data found.</p>';
+      return;
+    }
+
+    const header = columns.map(([label]) => `<th>${escapeHtml(label)}</th>`).join("");
+    const body = rows.map(row => `<tr>${columns.map(([, accessor]) => `<td>${escapeHtml(read(row, accessor))}</td>`).join("")}</tr>`).join("");
+    root.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  function read(row, accessor) {
+    if (typeof accessor === "function") return accessor(row) ?? "";
+    return row[accessor] ?? "";
+  }
+
+  function shortPath(path) {
+    if (!path) return "";
+    return String(path).replace(/\\/g, "/").split("/").slice(-4).join("/");
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 })();
 """;

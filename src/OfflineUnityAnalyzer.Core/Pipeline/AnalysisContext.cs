@@ -14,6 +14,7 @@ public sealed class AnalysisContext
     private readonly List<UnityAssetInfo> _unityAssets = new();
     private readonly List<UnityScriptReferenceInfo> _unityScriptReferences = new();
     private readonly List<DiagnosticInfo> _diagnostics = new();
+    private readonly List<ModuleInfo> _modules = new();
 
     public AnalysisContext(AnalyzerConfig config, PathGuard pathGuard, ISafeFileSystem fileSystem)
     {
@@ -44,9 +45,13 @@ public sealed class AnalysisContext
 
     public IReadOnlyList<DiagnosticInfo> Diagnostics => _diagnostics;
 
+    public IReadOnlyList<ModuleInfo> Modules => _modules;
+
     public HybridClrInfo HybridClr { get; private set; } = new();
 
     public YooAssetInfo YooAsset { get; private set; } = new();
+
+    public ProjectModelInfo ProjectModel { get; private set; } = new();
 
     public void AddFile(ProjectFile file)
     {
@@ -88,6 +93,11 @@ public sealed class AnalysisContext
         _diagnostics.Add(diagnostic);
     }
 
+    public void AddModule(ModuleInfo module)
+    {
+        _modules.Add(module);
+    }
+
     public void SetHybridClr(HybridClrInfo hybridClr)
     {
         HybridClr = hybridClr;
@@ -96,5 +106,10 @@ public sealed class AnalysisContext
     public void SetYooAsset(YooAssetInfo yooAsset)
     {
         YooAsset = yooAsset;
+    }
+
+    public void SetProjectModel(ProjectModelInfo projectModel)
+    {
+        ProjectModel = projectModel;
     }
 }

@@ -1,6 +1,8 @@
 using OfflineUnityAnalyzer.Analyzers.FileScanning;
 using OfflineUnityAnalyzer.Analyzers.AssemblyAnalysis;
 using OfflineUnityAnalyzer.Analyzers.HotUpdate;
+using OfflineUnityAnalyzer.Analyzers.Modules;
+using OfflineUnityAnalyzer.Analyzers.ProjectModel;
 using OfflineUnityAnalyzer.Analyzers.Reporting;
 using OfflineUnityAnalyzer.Analyzers.SourceAnalysis;
 using OfflineUnityAnalyzer.Analyzers.UnityAnalysis;
@@ -16,11 +18,13 @@ public static class AnalyzerPipelineFactory
         {
             new SafetyPreflightStage(),
             new FileScanStage(),
+            new ProjectModelStage(),
             new SourceAnalysisStage(),
             new AssemblyAnalysisStage(),
             new UnityYamlAnalysisStage(),
             new HybridClrAnalysisStage(),
             new YooAssetAnalysisStage(),
+            new ModuleInferenceStage(),
             new ReportGenerationStage()
         };
 

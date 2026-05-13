@@ -4,6 +4,7 @@ namespace OfflineUnityAnalyzer.Core.Safety;
 
 public sealed class SafeFileSystem : ISafeFileSystem
 {
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private readonly PathGuard _pathGuard;
 
     public SafeFileSystem(PathGuard pathGuard)
@@ -38,7 +39,7 @@ public sealed class SafeFileSystem : ISafeFileSystem
     {
         var outputPath = _pathGuard.GetOutputPath(relativePath);
         EnsureOutputDirectory(outputPath);
-        File.WriteAllText(outputPath, content, Encoding.UTF8);
+        File.WriteAllText(outputPath, content, Utf8NoBom);
     }
 
     public void WriteBytesToOutput(string relativePath, byte[] bytes)

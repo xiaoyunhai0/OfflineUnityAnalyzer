@@ -17,6 +17,8 @@ This repository is at the v0.1 skeleton stage:
 - safety preflight stage
 - readonly file scan stage
 - basic C# source type index
+- `.sln` / `.csproj` / `.asmdef` / package manifest project model parsing
+- automatic module inference from project model, namespaces, assemblies, and asset paths
 - basic DLL and `.dll.bytes` metadata index
 - basic Unity YAML `m_Script` reference scan
 - HybridCLR and YooAsset evidence detection
@@ -42,6 +44,8 @@ AnalyzerOutput/
   summary.json
   data/
     types.json
+    project-model.json
+    modules.json
     assemblies.json
     unity-script-refs.json
     hybridclr.json
