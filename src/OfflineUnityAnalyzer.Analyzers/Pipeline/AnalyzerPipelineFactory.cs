@@ -1,5 +1,6 @@
 using OfflineUnityAnalyzer.Analyzers.FileScanning;
 using OfflineUnityAnalyzer.Analyzers.AssemblyAnalysis;
+using OfflineUnityAnalyzer.Analyzers.ConfigAnalysis;
 using OfflineUnityAnalyzer.Analyzers.HotUpdate;
 using OfflineUnityAnalyzer.Analyzers.Modules;
 using OfflineUnityAnalyzer.Analyzers.ProjectModel;
@@ -24,6 +25,7 @@ public static class AnalyzerPipelineFactory
             new UnityYamlAnalysisStage(),
             new HybridClrAnalysisStage(),
             new YooAssetAnalysisStage(),
+            new ConfigReferenceStage(),
             new ModuleInferenceStage(),
             new ReportGenerationStage()
         };

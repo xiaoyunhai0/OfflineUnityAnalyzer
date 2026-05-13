@@ -23,6 +23,8 @@ This repository is at the v0.1 skeleton stage:
 - basic Unity YAML `m_Script` reference scan
 - Unity YAML object, GameObject, Component, and asset reference export
 - HybridCLR and YooAsset evidence detection
+- YooAsset manifest asset and code reference extraction
+- config/reference shallow indexing for JSON, CSV, XML, and readable bytes
 - offline JSON data export
 - offline static HTML report
 - placeholder viewer server, indexing, and app shells
@@ -55,6 +57,7 @@ AnalyzerOutput/
     unity-asset-refs.json
     hybridclr.json
     yooasset.json
+    config-refs.json
     diagnostics.json
   report/
     report.html

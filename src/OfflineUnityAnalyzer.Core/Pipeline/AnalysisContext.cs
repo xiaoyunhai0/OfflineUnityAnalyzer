@@ -17,6 +17,7 @@ public sealed class AnalysisContext
     private readonly List<UnityGameObjectInfo> _unityGameObjects = new();
     private readonly List<UnityComponentInfo> _unityComponents = new();
     private readonly List<UnityAssetReferenceInfo> _unityAssetReferences = new();
+    private readonly List<ConfigReferenceInfo> _configReferences = new();
     private readonly List<DiagnosticInfo> _diagnostics = new();
     private readonly List<ModuleInfo> _modules = new();
 
@@ -54,6 +55,8 @@ public sealed class AnalysisContext
     public IReadOnlyList<UnityComponentInfo> UnityComponents => _unityComponents;
 
     public IReadOnlyList<UnityAssetReferenceInfo> UnityAssetReferences => _unityAssetReferences;
+
+    public IReadOnlyList<ConfigReferenceInfo> ConfigReferences => _configReferences;
 
     public IReadOnlyList<DiagnosticInfo> Diagnostics => _diagnostics;
 
@@ -118,6 +121,11 @@ public sealed class AnalysisContext
     public void AddUnityAssetReference(UnityAssetReferenceInfo reference)
     {
         _unityAssetReferences.Add(reference);
+    }
+
+    public void AddConfigReference(ConfigReferenceInfo reference)
+    {
+        _configReferences.Add(reference);
     }
 
     public void AddDiagnostic(DiagnosticInfo diagnostic)

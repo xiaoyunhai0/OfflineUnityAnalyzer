@@ -38,6 +38,7 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         WriteJson(context, "data/unity-asset-refs.json", context.UnityAssetReferences);
         WriteJson(context, "data/hybridclr.json", context.HybridClr);
         WriteJson(context, "data/yooasset.json", context.YooAsset);
+        WriteJson(context, "data/config-refs.json", context.ConfigReferences);
         WriteJson(context, "data/diagnostics.json", context.Diagnostics);
 
         context.FileSystem.WriteAllTextToOutput("report/assets/style.css", BuildCss());
@@ -73,6 +74,9 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             unityScriptReferenceCount = context.UnityScriptReferences.Count,
             unresolvedUnityScriptReferenceCount = context.UnityScriptReferences.Count(reference => reference.ResolvedScriptPath is null),
             diagnosticCount = context.Diagnostics.Count,
+            configReferenceCount = context.ConfigReferences.Count,
+            yooAssetManifestAssetCount = context.YooAsset.Assets.Count,
+            yooAssetCodeReferenceCount = context.YooAsset.StructuredCodeReferences.Count,
             hybridClrDetected = context.HybridClr.Detected,
             yooAssetDetected = context.YooAsset.Detected,
             byFileKind = context.Files
@@ -107,6 +111,9 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             unityComponents = context.UnityComponents.Take(80),
             unityReferences = context.UnityScriptReferences.Take(50),
             unityAssetReferences = context.UnityAssetReferences.Take(80),
+            yooAssetManifestAssets = context.YooAsset.Assets.Take(80),
+            yooAssetCodeReferences = context.YooAsset.StructuredCodeReferences.Take(80),
+            configReferences = context.ConfigReferences.Take(80),
             hybridClr = context.HybridClr,
             yooAsset = context.YooAsset
         };
@@ -167,6 +174,18 @@ public sealed class ReportGenerationStage : IAnalyzerStage
     <section class="wide">
       <h2>Unity Asset References</h2>
       <div id="assetrefs"></div>
+    </section>
+    <section class="wide">
+      <h2>YooAsset Manifest Assets</h2>
+      <div id="yooassets"></div>
+    </section>
+    <section class="wide">
+      <h2>YooAsset Code References</h2>
+      <div id="yoocode"></div>
+    </section>
+    <section class="wide">
+      <h2>Config References</h2>
+      <div id="configrefs"></div>
     </section>
     <section class="wide">
       <h2>Diagnostics</h2>
@@ -319,6 +338,9 @@ code {
     ["Components", summary.unityComponentCount],
     ["Asset Refs", summary.unityAssetReferenceCount],
     ["Unity Script Refs", summary.unityScriptReferenceCount],
+    ["Yoo Assets", summary.yooAssetManifestAssetCount],
+    ["Yoo Code Refs", summary.yooAssetCodeReferenceCount],
+    ["Config Refs", summary.configReferenceCount],
     ["Unresolved Refs", summary.unresolvedUnityScriptReferenceCount],
     ["Diagnostics", summary.diagnosticCount],
     ["HybridCLR", summary.hybridClrDetected ? "Detected" : "Not found"],
@@ -390,6 +412,28 @@ code {
     ["Field", "fieldName"],
     ["Target", value => shortPath(value.resolvedPath) || value.guid || value.fileId || ""],
     ["Kind", "referenceKind"]
+  ]);
+
+  renderTable("yooassets", data.yooAssetManifestAssets || [], [
+    ["Package", "packageName"],
+    ["Address", "address"],
+    ["Asset Path", "assetPath"],
+    ["Bundle", "bundleName"]
+  ]);
+
+  renderTable("yoocode", data.yooAssetCodeReferences || [], [
+    ["Source", value => shortPath(value.sourceFile)],
+    ["API", "apiName"],
+    ["Address", "addressLiteral"],
+    ["Confidence", "confidence"]
+  ]);
+
+  renderTable("configrefs", data.configReferences || [], [
+    ["Source", value => shortPath(value.sourcePath)],
+    ["Location", "location"],
+    ["Field", "fieldName"],
+    ["Value", "value"],
+    ["Kind", "matchKind"]
   ]);
 
   renderTable("diagnostics", data.diagnostics || [], [
