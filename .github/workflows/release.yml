@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-win-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore OfflineUnityAnalyzer.sln
+
+      - name: Build
+        run: dotnet build OfflineUnityAnalyzer.sln -c Release --no-restore
+
+      - name: Publish GUI
+        run: >
+          dotnet publish src/OfflineUnityAnalyzer.App/OfflineUnityAnalyzer.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -o publish/OfflineUnityAnalyzer-win-x64
+
+      - name: Publish CLI
+        run: >
+          dotnet publish src/OfflineUnityAnalyzer.Cli/OfflineUnityAnalyzer.Cli.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -o publish/OfflineUnityAnalyzer-win-x64
+
+      - name: Copy package files
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force assets publish/OfflineUnityAnalyzer-win-x64/assets
+          Copy-Item -Recurse -Force templates publish/OfflineUnityAnalyzer-win-x64/templates
+          Copy-Item -Recurse -Force docs publish/OfflineUnityAnalyzer-win-x64/docs
+          Copy-Item -Force samples/config.sample.json publish/OfflineUnityAnalyzer-win-x64/config.sample.json
+          Copy-Item -Force README.md publish/OfflineUnityAnalyzer-win-x64/README.md
+
+      - name: Zip package
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path publish/OfflineUnityAnalyzer-win-x64 `
+            -DestinationPath publish/OfflineUnityAnalyzer-win-x64.zip `
+            -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OfflineUnityAnalyzer-win-x64
+          path: publish/OfflineUnityAnalyzer-win-x64.zip
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+          name: OfflineUnityAnalyzer ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+          body_path: docs/release-notes-v0.1.0.md
+          files: publish/OfflineUnityAnalyzer-win-x64.zip

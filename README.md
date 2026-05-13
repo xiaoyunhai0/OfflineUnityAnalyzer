@@ -68,3 +68,20 @@ dotnet build OfflineUnityAnalyzer.sln
 ```
 
 The current development container used to create this skeleton did not include `dotnet`, so build verification is expected to run on a machine or CI image with .NET 8 installed.
+
+## Release
+
+Local package:
+
+```bash
+./build/package.sh
+```
+
+GitHub Release:
+
+```bash
+git tag -a v0.1.0 -m "发布 v0.1.0"
+git push origin main --tags
+```
+
+The `Release` workflow builds `OfflineUnityAnalyzer-win-x64.zip` and attaches it to the GitHub Release.
