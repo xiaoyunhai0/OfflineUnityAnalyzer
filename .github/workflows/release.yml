@@ -57,6 +57,7 @@ jobs:
           Copy-Item -Recurse -Force docs publish/OfflineUnityAnalyzer-win-x64/docs
           Copy-Item -Force samples/config.sample.json publish/OfflineUnityAnalyzer-win-x64/config.sample.json
           Copy-Item -Force README.md publish/OfflineUnityAnalyzer-win-x64/README.md
+          Copy-Item -Force README.zh-CN.md publish/OfflineUnityAnalyzer-win-x64/README.zh-CN.md
 
       - name: Zip package
         shell: pwsh

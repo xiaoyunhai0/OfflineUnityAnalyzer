@@ -29,6 +29,7 @@ Copy-Item -Recurse -Force (Join-Path $root "templates") (Join-Path $publishRoot 
 Copy-Item -Recurse -Force (Join-Path $root "docs") (Join-Path $publishRoot "docs")
 Copy-Item -Force (Join-Path $root "samples/config.sample.json") (Join-Path $publishRoot "config.sample.json")
 Copy-Item -Force (Join-Path $root "README.md") (Join-Path $publishRoot "README.md")
+Copy-Item -Force (Join-Path $root "README.zh-CN.md") (Join-Path $publishRoot "README.zh-CN.md")
 
 $zipPath = "$publishRoot.zip"
 if (Test-Path $zipPath) {

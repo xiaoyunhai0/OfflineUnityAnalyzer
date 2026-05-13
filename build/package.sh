@@ -26,6 +26,7 @@ cp -R "$ROOT/templates" "$PUBLISH_ROOT/templates"
 cp -R "$ROOT/docs" "$PUBLISH_ROOT/docs"
 cp "$ROOT/samples/config.sample.json" "$PUBLISH_ROOT/config.sample.json"
 cp "$ROOT/README.md" "$PUBLISH_ROOT/README.md"
+cp "$ROOT/README.zh-CN.md" "$PUBLISH_ROOT/README.zh-CN.md"
 
 if command -v zip >/dev/null 2>&1; then
   (cd "$ROOT/publish" && zip -qr "OfflineUnityAnalyzer-$RUNTIME.zip" "OfflineUnityAnalyzer-$RUNTIME")
