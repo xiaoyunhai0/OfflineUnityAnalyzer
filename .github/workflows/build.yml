@@ -25,3 +25,6 @@ jobs:
 
       - name: Build
         run: dotnet build OfflineUnityAnalyzer.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test OfflineUnityAnalyzer.sln -c Release --no-build

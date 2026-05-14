@@ -36,10 +36,12 @@ public sealed class UnityYamlAnalysisStage : IAnalyzerStage
                     .SelectMany(document => ParseScriptReferences(file, document, guidToAssetPath))
                     .ToArray();
                 var gameObjects = documents.Where(document => document.TypeName == "GameObject").ToArray();
-                var gameObjectNameById = gameObjects.ToDictionary(
-                    document => document.LocalId,
-                    document => document.Name ?? "(unnamed)",
-                    StringComparer.Ordinal);
+                var gameObjectNameById = gameObjects
+                    .GroupBy(document => document.LocalId, StringComparer.Ordinal)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.First().Name ?? "(unnamed)",
+                        StringComparer.Ordinal);
 
                 context.AddUnityAsset(new UnityAssetInfo
                 {
@@ -112,9 +114,16 @@ public sealed class UnityYamlAnalysisStage : IAnalyzerStage
                 parsedAssets++;
                 refs += scriptRefs.Length;
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (IsRecoverableUnityYamlException(exception))
             {
                 context.AddWarning($"Failed to parse Unity asset '{file.RelativePath}': {exception.Message}");
+                context.AddDiagnostic(new DiagnosticInfo
+                {
+                    Severity = "warning",
+                    Category = "unity-yaml",
+                    Message = $"Skipped Unity YAML asset '{file.RelativePath}': {exception.Message}",
+                    Path = file.FullPath
+                });
                 warnings++;
             }
         }
@@ -161,6 +170,11 @@ public sealed class UnityYamlAnalysisStage : IAnalyzerStage
                 ScriptGuid: scriptMatch.Success ? scriptMatch.Groups[2].Value.Trim() : null,
                 ScriptFileId: scriptMatch.Success ? scriptMatch.Groups[1].Value.Trim() : null);
         }
+    }
+
+    private static bool IsRecoverableUnityYamlException(Exception exception)
+    {
+        return exception is not OperationCanceledException;
     }
 
     private static Dictionary<string, string> BuildGuidMap(AnalysisContext context, CancellationToken cancellationToken)

@@ -14,10 +14,35 @@
       <Setter Property="MinHeight" Value="34" />
       <Setter Property="Padding" Value="10,7" />
       <Setter Property="Background" Value="White" />
+      <Setter Property="Foreground" Value="#102A43" />
+      <Setter Property="CaretBrush" Value="#2563EB" />
+      <Setter Property="SelectionBrush" Value="#BFDBFE" />
+      <Setter Property="BorderBrush" Value="#BCCCDC" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBox:pointerover">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="Foreground" Value="#102A43" />
+      <Setter Property="BorderBrush" Value="#829AB1" />
+    </Style>
+    <Style Selector="TextBox:focus">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="Foreground" Value="#102A43" />
+      <Setter Property="BorderBrush" Value="#2563EB" />
     </Style>
     <Style Selector="TextBox.pathBox">
       <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Microsoft YaHei UI, monospace" />
       <Setter Property="FontSize" Value="12" />
+      <Setter Property="Background" Value="#F8FAFC" />
+      <Setter Property="Foreground" Value="#102A43" />
+    </Style>
+    <Style Selector="TextBox.pathBox:pointerover">
+      <Setter Property="Background" Value="#F8FAFC" />
+      <Setter Property="Foreground" Value="#102A43" />
+    </Style>
+    <Style Selector="TextBox.pathBox:focus">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="Foreground" Value="#102A43" />
     </Style>
     <Style Selector="Button">
       <Setter Property="CornerRadius" Value="4" />
