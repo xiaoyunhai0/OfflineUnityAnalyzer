@@ -1,10 +1,36 @@
 # OfflineUnityAnalyzer
 
-简体中文 | [English](README.md)
+[English](README.md) | 简体中文
 
 OfflineUnityAnalyzer 是一个离线、只读的 Unity 项目理解工具。它不会打开 Unity，不会构建目标项目，不会 restore 目标项目依赖，也不会改动源码和资源；分析结果只写入你选择的输出目录。
 
-它适合大型 Unity 项目，用来快速回答这些问题：
+| 状态 | 内容 |
+| --- | --- |
+| 主要入口 | `OfflineUnityAnalyzer.exe` 桌面 GUI |
+| 自动化入口 | `OfflineUnityAnalyzer.Cli.exe analyze` |
+| 运行时 | .NET 8 |
+| 当前包 | Windows x64 自包含 zip |
+| 安全模型 | 读取输入，只写入用户选择的输出目录 |
+| 目标 Unity 模式 | C# 工程、Unity YAML、HybridCLR、YooAsset、DLL 元数据、配置引用 |
+
+## 目录
+
+- [为什么需要](#为什么需要)
+- [功能亮点](#功能亮点)
+- [快速开始](#快速开始)
+- [架构](#架构)
+- [当前索引内容](#当前索引内容)
+- [分析输出](#分析输出)
+- [只读安全模型](#只读安全模型)
+- [构建](#构建)
+- [发布](#发布)
+- [路线图](#路线图)
+
+## 为什么需要
+
+大型 Unity 项目通常会混合源码、生成的工程文件、序列化 YAML 资源、托管 DLL、热更新程序集、类似 Addressables 的资源系统和配置文件。OfflineUnityAnalyzer 的目标是在不依赖 Unity Editor、不构建目标项目的前提下，给你一张本地项目地图。
+
+它适合回答这些问题：
 
 - 脚本、Prefab、Scene、GUID、YooAsset 地址、热更新程序集在哪里被使用？
 - 项目里有哪些模块？这些模块如何从代码、程序集、包和资源路径里推断出来？
@@ -15,7 +41,7 @@ OfflineUnityAnalyzer 是一个离线、只读的 Unity 项目理解工具。它�
 - **默认离线**：不启动 Unity Editor，不构建目标项目，不 restore，不访问网络。
 - **只读保护**：输入根目录注册为只读，输出目录必须位于输入目录之外。
 - **GUI 优先**：选择 Unity 根目录后自动发现路径，运行分析，打开报告。
-- **CLI 自动化**：提供可重复执行的 `analyze` 和 `serve` 入口，适合脚本化本地流程。
+- **CLI 自动化**：提供可重复执行的 `analyze` 和 `serve` 入口，适合本地脚本化流程。
 - **Unity 语义索引**：支持 C# 类型、项目模型文件、DLL 元数据、Unity YAML 对象、GameObject、Component、资源引用、HybridCLR 线索、YooAsset 资源、配置引用。
 - **本地报告导出**：输出 JSON 数据和离线静态 HTML 报告。
 
@@ -51,37 +77,70 @@ OfflineUnityAnalyzer.Cli.exe analyze ^
 ## 架构
 
 ```mermaid
-flowchart LR
-    User[用户] --> App[Avalonia GUI]
-    User --> Cli[CLI]
+flowchart TB
+    subgraph Entry["入口层"]
+        App["OfflineUnityAnalyzer.App<br/>Avalonia GUI"]
+        Cli["OfflineUnityAnalyzer.Cli<br/>analyze / serve"]
+    end
+
+    subgraph Safety["安全边界"]
+        Guard["只读路径保护"]
+        SafeFs["安全输出文件系统"]
+    end
+
+    subgraph Pipeline["分析流水线"]
+        Preflight["只读预检"]
+        FileScan["文件扫描"]
+        ProjectModel["项目模型"]
+        Source["C# 源码索引"]
+        Dll["DLL 元数据索引"]
+        UnityYaml["Unity YAML 索引"]
+        HotUpdate["HybridCLR / YooAsset"]
+        Config["配置引用索引"]
+        Modules["模块推断"]
+        Export["报告导出"]
+    end
+
+    subgraph Outputs["生成结果"]
+        Json["JSON 数据文件"]
+        Html["离线 HTML 报告"]
+        Logs["只读预检日志"]
+        Viewer["本地 Viewer Server<br/>127.0.0.1"]
+    end
+
     App -->|启动随包 CLI Worker| Cli
-    Cli --> Pipeline[分析流水线]
-
-    Pipeline --> Guard[只读路径保护]
-    Pipeline --> Scan[文件扫描]
-    Pipeline --> Source[C# 源码索引]
-    Pipeline --> Unity[Unity YAML 索引]
-    Pipeline --> HotUpdate[HybridCLR / YooAsset]
-    Pipeline --> Config[配置引用索引]
-    Pipeline --> Modules[模块推断]
-    Pipeline --> Report[报告导出]
-
-    Guard --> Inputs[(Unity / 代码 / DLL / YooAsset 输入)]
-    Report --> Output[(用户选择的输出目录)]
-    Output --> Html[离线 HTML 报告]
-    Output --> Json[JSON 数据]
-    Cli --> Server[本地 Viewer Server]
+    Cli --> Guard
+    Guard --> Preflight
+    SafeFs --> Export
+    Preflight --> FileScan --> ProjectModel --> Source --> Dll --> UnityYaml --> HotUpdate --> Config --> Modules --> Export
+    Export --> Json
+    Export --> Html
+    Export --> Logs
+    Cli --> Viewer
 ```
 
-| 项目 | 职责 |
+| 层级 | 项目 | 职责 |
+| --- | --- | --- |
+| 桌面端 | `OfflineUnityAnalyzer.App` | Avalonia 桌面壳、路径发现、进度展示、打开报告 |
+| 命令行 | `OfflineUnityAnalyzer.Cli` | `analyze`、`serve`，以及计划中的 `diff`、`export` 命令 |
+| 核心 | `OfflineUnityAnalyzer.Core` | 共享模型、配置、流水线契约、只读安全 |
+| 分析 | `OfflineUnityAnalyzer.Analyzers` | 文件扫描、C# 源码、DLL、Unity YAML、HybridCLR、YooAsset、配置、模块、报告阶段 |
+| 导出 | `OfflineUnityAnalyzer.ReportExport` | 离线静态报告生成 |
+| 查看器 | `OfflineUnityAnalyzer.ViewerServer` | 本地只读 `127.0.0.1` Viewer API 壳 |
+| 索引 | `OfflineUnityAnalyzer.Indexing` | 后续索引元数据和查询存储 |
+
+## 当前索引内容
+
+| 领域 | 当前线索 |
 | --- | --- |
-| `OfflineUnityAnalyzer.App` | Avalonia 桌面壳、路径发现、进度展示、打开报告 |
-| `OfflineUnityAnalyzer.Cli` | `analyze`、`serve`，以及计划中的 `diff`、`export` 命令 |
-| `OfflineUnityAnalyzer.Core` | 共享模型、配置、流水线契约、只读安全 |
-| `OfflineUnityAnalyzer.Analyzers` | 文件扫描、C# 源码、DLL、Unity YAML、HybridCLR、YooAsset、配置、模块、报告阶段 |
-| `OfflineUnityAnalyzer.ReportExport` | 离线静态报告生成 |
-| `OfflineUnityAnalyzer.ViewerServer` | 本地只读 `127.0.0.1` Viewer API 壳 |
-| `OfflineUnityAnalyzer.Indexing` | 后续索引元数据和查询存储 |
+| C# 源码 | 类型名、命名空间、成员、序列化字段、MonoBehaviour 和 ScriptableObject 线索 |
+| 项目模型 | `.sln`、`.csproj`、`.asmdef`、`.asmref`、`Packages/manifest.json`、package lock |
+| 托管程序集 | `.dll`、`.dll.bytes`、程序集名、版本、公钥 Token、热更新线索 |
+| Unity 资源 | Scene、Prefab、Asset、Controller、Material、Animation、`.meta` GUID 数据 |
+| 序列化对象 | Unity YAML 对象 ID、GameObject、Component、脚本引用、资源引用 |
+| HybridCLR | 热更新和 AOT metadata 目录/文件线索 |
+| YooAsset | Manifest 资源、包名、地址、资源路径、Bundle、Tag、C# 加载 API 字符串 |
+| 配置文件 | JSON、CSV、XML、可读 `.bytes` 文件中的浅层引用 |
 
 ## 分析输出
 

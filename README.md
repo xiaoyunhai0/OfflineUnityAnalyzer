@@ -1,10 +1,36 @@
 # OfflineUnityAnalyzer
 
-[简体中文](README.zh-CN.md) | English
+English | [简体中文](README.zh-CN.md)
 
 OfflineUnityAnalyzer is an offline, read-only Unity project understanding tool. It scans a Unity project without opening Unity, building the target project, restoring packages, or touching source assets, then writes a navigable project map to a separate output directory.
 
-It is designed for large projects where you want to answer questions such as:
+| Status | Value |
+| --- | --- |
+| Primary entry | `OfflineUnityAnalyzer.exe` desktop GUI |
+| Automation entry | `OfflineUnityAnalyzer.Cli.exe analyze` |
+| Runtime | .NET 8 |
+| Current package | Windows x64 self-contained zip |
+| Safety model | Read inputs, write only selected output directory |
+| Target Unity patterns | C# projects, Unity YAML, HybridCLR, YooAsset, DLL metadata, config-like references |
+
+## Contents
+
+- [Why](#why)
+- [Highlights](#highlights)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [What Gets Indexed](#what-gets-indexed)
+- [Analysis Output](#analysis-output)
+- [Readonly Safety Model](#readonly-safety-model)
+- [Build](#build)
+- [Release](#release)
+- [Roadmap](#roadmap)
+
+## Why
+
+Large Unity projects often mix source code, generated project files, serialized YAML assets, managed DLLs, hot-update assemblies, addressable-like resource systems, and configuration files. OfflineUnityAnalyzer gives you a local map of that project without requiring the Unity Editor or any target-project build step.
+
+Use it when you want to answer:
 
 - Where are scripts, prefabs, scenes, GUIDs, YooAsset addresses, and hot-update assemblies used?
 - Which modules exist, and how are they inferred from code, assemblies, packages, and asset paths?
@@ -15,7 +41,7 @@ It is designed for large projects where you want to answer questions such as:
 - **Offline by default**: no Unity Editor, no target project build, no restore, no network.
 - **Readonly guard**: input roots are registered as read-only; output must stay outside them.
 - **GUI-first workflow**: select a Unity root, auto-discover likely inputs, run analysis, open the report.
-- **CLI automation**: repeatable `analyze` and `serve` entry points for scripts and CI-like local workflows.
+- **CLI automation**: repeatable `analyze` and `serve` entry points for scripts and local automation.
 - **Unity-aware indexing**: C# types, project model files, DLL metadata, Unity YAML objects, GameObjects, Components, asset references, HybridCLR clues, YooAsset assets, and config references.
 - **Local report export**: JSON data plus an offline static HTML report.
 
@@ -51,37 +77,70 @@ OfflineUnityAnalyzer.Cli.exe analyze ^
 ## Architecture
 
 ```mermaid
-flowchart LR
-    User[User] --> App[Avalonia GUI]
-    User --> Cli[CLI]
-    App -->|launches bundled worker| Cli
-    Cli --> Pipeline[Analyzer Pipeline]
+flowchart TB
+    subgraph Entry["Entry Points"]
+        App["OfflineUnityAnalyzer.App<br/>Avalonia GUI"]
+        Cli["OfflineUnityAnalyzer.Cli<br/>analyze / serve"]
+    end
 
-    Pipeline --> Guard[Readonly Path Guard]
-    Pipeline --> Scan[File Scan]
-    Pipeline --> Source[C# Source Index]
-    Pipeline --> Unity[Unity YAML Index]
-    Pipeline --> HotUpdate[HybridCLR / YooAsset]
-    Pipeline --> Config[Config Reference Index]
-    Pipeline --> Modules[Module Inference]
-    Pipeline --> Report[Report Export]
+    subgraph Safety["Safety Boundary"]
+        Guard["Readonly Path Guard"]
+        SafeFs["Safe Output FileSystem"]
+    end
 
-    Guard --> Inputs[(Unity / Code / DLL / YooAsset inputs)]
-    Report --> Output[(Selected Output Directory)]
-    Output --> Html[Offline HTML Report]
-    Output --> Json[JSON Data]
-    Cli --> Server[Local Viewer Server]
+    subgraph Pipeline["Analyzer Pipeline"]
+        Preflight["Safety Preflight"]
+        FileScan["File Scan"]
+        ProjectModel["Project Model"]
+        Source["C# Source Index"]
+        Dll["DLL Metadata Index"]
+        UnityYaml["Unity YAML Index"]
+        HotUpdate["HybridCLR / YooAsset"]
+        Config["Config Reference Index"]
+        Modules["Module Inference"]
+        Export["Report Export"]
+    end
+
+    subgraph Outputs["Generated Output"]
+        Json["JSON data files"]
+        Html["Offline HTML report"]
+        Logs["Readonly preflight log"]
+        Viewer["Local viewer server<br/>127.0.0.1"]
+    end
+
+    App -->|starts bundled worker| Cli
+    Cli --> Guard
+    Guard --> Preflight
+    SafeFs --> Export
+    Preflight --> FileScan --> ProjectModel --> Source --> Dll --> UnityYaml --> HotUpdate --> Config --> Modules --> Export
+    Export --> Json
+    Export --> Html
+    Export --> Logs
+    Cli --> Viewer
 ```
 
-| Project | Responsibility |
+| Layer | Project | Responsibility |
+| --- | --- | --- |
+| Desktop | `OfflineUnityAnalyzer.App` | Avalonia shell, path discovery, progress display, report opening |
+| Command line | `OfflineUnityAnalyzer.Cli` | `analyze`, `serve`, planned `diff` and `export` commands |
+| Core | `OfflineUnityAnalyzer.Core` | shared models, configuration, pipeline contracts, readonly safety |
+| Analysis | `OfflineUnityAnalyzer.Analyzers` | file scan, C# source, DLL, Unity YAML, HybridCLR, YooAsset, config, modules, report stage |
+| Export | `OfflineUnityAnalyzer.ReportExport` | offline static report generation |
+| Viewer | `OfflineUnityAnalyzer.ViewerServer` | local read-only `127.0.0.1` viewer API shell |
+| Indexing | `OfflineUnityAnalyzer.Indexing` | future index metadata and query storage |
+
+## What Gets Indexed
+
+| Domain | Current signals |
 | --- | --- |
-| `OfflineUnityAnalyzer.App` | Avalonia desktop shell, path discovery, progress display, report opening |
-| `OfflineUnityAnalyzer.Cli` | `analyze`, `serve`, planned `diff` and `export` commands |
-| `OfflineUnityAnalyzer.Core` | shared models, configuration, pipeline contracts, readonly safety |
-| `OfflineUnityAnalyzer.Analyzers` | file scan, C# source, DLL, Unity YAML, HybridCLR, YooAsset, config, modules, report stage |
-| `OfflineUnityAnalyzer.ReportExport` | offline static report generation |
-| `OfflineUnityAnalyzer.ViewerServer` | local read-only `127.0.0.1` viewer API shell |
-| `OfflineUnityAnalyzer.Indexing` | future index metadata and query storage |
+| C# source | type names, namespaces, members, serialized fields, MonoBehaviour and ScriptableObject hints |
+| Project model | `.sln`, `.csproj`, `.asmdef`, `.asmref`, `Packages/manifest.json`, package lock files |
+| Managed assemblies | `.dll`, `.dll.bytes`, assembly name, version, public key token, hot-update hints |
+| Unity assets | scenes, prefabs, assets, controllers, materials, animations, `.meta` GUID data |
+| Serialized objects | Unity YAML object IDs, GameObjects, Components, script references, asset references |
+| HybridCLR | hot-update and AOT metadata directory/file evidence |
+| YooAsset | manifest assets, package names, addresses, asset paths, bundles, tags, C# load API literals |
+| Config files | shallow references from JSON, CSV, XML, and readable `.bytes` files |
 
 ## Analysis Output
 
