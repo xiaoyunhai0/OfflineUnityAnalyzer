@@ -171,7 +171,24 @@ namespace OfflineUnityAnalyzer.Cli
                 UnityProject = options.Values.GetValueOrDefault("unity") ?? config.UnityProject,
                 Output = options.Values.GetValueOrDefault("out") ?? config.Output,
                 StrictReadonly = options.Flags.Contains("strict-readonly") || config.StrictReadonly,
-                AnalyzeCallGraph = !options.Flags.Contains("no-call-graph") && config.AnalyzeCallGraph
+                AnalyzeCallGraph = !options.Flags.Contains("no-call-graph") && config.AnalyzeCallGraph,
+                Stages = ApplyStageFlags(config.Stages, options.Flags)
+            };
+        }
+
+        private static StageSelection ApplyStageFlags(StageSelection stages, IReadOnlySet<string> flags)
+        {
+            return stages with
+            {
+                ProjectModel = !flags.Contains("skip-project-model") && stages.ProjectModel,
+                SourceSyntaxIndex = !flags.Contains("skip-source") && stages.SourceSyntaxIndex,
+                DllIndex = !flags.Contains("skip-dll") && stages.DllIndex,
+                UnityYamlRawIndex = !flags.Contains("skip-unity-yaml") && stages.UnityYamlRawIndex,
+                HybridClrIndex = !flags.Contains("skip-hybridclr") && stages.HybridClrIndex,
+                YooAssetIndex = !flags.Contains("skip-yooasset") && stages.YooAssetIndex,
+                ConfigShallowIndex = !flags.Contains("skip-config") && stages.ConfigShallowIndex,
+                ModuleInference = !flags.Contains("skip-modules") && stages.ModuleInference,
+                ReportExport = !flags.Contains("skip-report") && stages.ReportExport
             };
         }
 
@@ -209,6 +226,15 @@ namespace OfflineUnityAnalyzer.Cli
             Console.WriteLine("  --yooasset-manifest <path>  YooAsset manifest root; repeatable");
             Console.WriteLine("  --out <path>                Output directory");
             Console.WriteLine("  --strict-readonly           Enforce strict readonly policy");
+            Console.WriteLine("  --skip-project-model        Skip .sln/.csproj/.asmdef/package model parsing");
+            Console.WriteLine("  --skip-source               Skip C# source type/member indexing");
+            Console.WriteLine("  --skip-dll                  Skip DLL and .dll.bytes metadata indexing");
+            Console.WriteLine("  --skip-unity-yaml           Skip scene/prefab/asset YAML parsing");
+            Console.WriteLine("  --skip-hybridclr            Skip HybridCLR evidence detection");
+            Console.WriteLine("  --skip-yooasset             Skip YooAsset evidence, manifest, and code reference scan");
+            Console.WriteLine("  --skip-config               Skip JSON/CSV/XML/.bytes shallow reference scan");
+            Console.WriteLine("  --skip-modules              Skip module inference");
+            Console.WriteLine("  --skip-report               Skip offline report export");
             Console.WriteLine("  --no-call-graph             Skip call graph stages when implemented");
             Console.WriteLine("  --progress-json             Emit machine-readable progress events");
             Console.WriteLine();
@@ -231,7 +257,16 @@ namespace OfflineUnityAnalyzer.Cli
         {
             "strict-readonly",
             "no-call-graph",
-            "progress-json"
+            "progress-json",
+            "skip-project-model",
+            "skip-source",
+            "skip-dll",
+            "skip-unity-yaml",
+            "skip-hybridclr",
+            "skip-yooasset",
+            "skip-config",
+            "skip-modules",
+            "skip-report"
         };
 
         public Dictionary<string, string> Values { get; } = new(StringComparer.OrdinalIgnoreCase);

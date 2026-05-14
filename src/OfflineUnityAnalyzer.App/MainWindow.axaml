@@ -79,6 +79,32 @@
               </Grid>
             </StackPanel>
 
+            <Border Background="#F8FAFC" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="6" Padding="12">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                  <StackPanel Spacing="3">
+                    <TextBlock Text="分析范围" FontWeight="SemiBold" />
+                    <TextBlock Text="大项目可先关掉 Unity YAML 或配置扫描，之后再补跑。" TextWrapping="Wrap" Foreground="#52606D" FontSize="12" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Classes="quiet" Content="全选" Click="EnableAllStagesButton_Click" />
+                  <Button Grid.Column="2" Classes="quiet" Content="快速模式" Click="FastModeButton_Click" />
+                </Grid>
+
+                <UniformGrid Columns="2">
+                  <CheckBox Name="ProjectModelCheckBox" Content="项目模型" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="SourceCheckBox" Content="C# 源码" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="DllCheckBox" Content="DLL 元数据" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="UnityYamlCheckBox" Content="Unity YAML" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="HybridClrCheckBox" Content="HybridCLR" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="YooAssetCheckBox" Content="YooAsset" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="ConfigCheckBox" Content="配置引用" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="ModulesCheckBox" Content="模块推断" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                </UniformGrid>
+
+                <TextBlock Name="StageOptionSummaryText" Text="当前为完整分析。" Foreground="#52606D" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
             <Border Name="GuardPanel" Background="#E7F5EF" BorderBrush="#A7D8C9" BorderThickness="1" CornerRadius="6" Padding="12">
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <TextBlock Name="GuardIconText" Text="OK" Foreground="#0F766E" FontWeight="Bold" VerticalAlignment="Top" />

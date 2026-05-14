@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, StageViewModel> _stageMap;
     private readonly HashSet<string> _autoFilledTargets = new(StringComparer.OrdinalIgnoreCase);
     private bool _isUpdatingInputs;
+    private bool _isUpdatingStageOptions;
     private string? _lastOutputDirectory;
     private CancellationTokenSource? _analysisCancellation;
     private Process? _runningProcess;
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         UpdateStageProgress();
         UpdateInputSummary();
         UpdateGuardState();
+        UpdateStageOptionSummary();
     }
 
     private async void BrowseUnityButton_Click(object? sender, RoutedEventArgs e)
@@ -90,6 +92,43 @@ public partial class MainWindow : Window
         DiscoverFromUnityRoot(applySuggestions: true);
     }
 
+    private void EnableAllStagesButton_Click(object? sender, RoutedEventArgs e)
+    {
+        SetStageOptions(
+            projectModel: true,
+            source: true,
+            dll: true,
+            unityYaml: true,
+            hybridClr: true,
+            yooAsset: true,
+            config: true,
+            modules: true);
+    }
+
+    private void FastModeButton_Click(object? sender, RoutedEventArgs e)
+    {
+        SetStageOptions(
+            projectModel: true,
+            source: true,
+            dll: false,
+            unityYaml: false,
+            hybridClr: true,
+            yooAsset: true,
+            config: false,
+            modules: true);
+    }
+
+    private void StageOption_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingStageOptions)
+        {
+            return;
+        }
+
+        UpdateStageOptionSummary();
+        ResetStages();
+    }
+
     private void CancelButton_Click(object? sender, RoutedEventArgs e)
     {
         AppendLog("正在请求停止分析...");
@@ -115,6 +154,15 @@ public partial class MainWindow : Window
         SetText(DllPathBox, string.Empty);
         SetText(YooAssetPathBox, string.Empty);
         SetText(OutputPathBox, string.Empty);
+        SetStageOptions(
+            projectModel: true,
+            source: true,
+            dll: true,
+            unityYaml: true,
+            hybridClr: true,
+            yooAsset: true,
+            config: true,
+            modules: true);
         _autoFilledTargets.Clear();
         _lastOutputDirectory = null;
         LastResultText.Text = "未运行";
@@ -671,8 +719,29 @@ public partial class MainWindow : Window
         AddMany(arguments, "--code", CodePathBox.Text, coveredRoots);
         AddMany(arguments, "--dll", DllPathBox.Text, coveredRoots);
         AddMany(arguments, "--yooasset-manifest", YooAssetPathBox.Text, coveredRoots);
+        AddStageSkipFlags(arguments);
 
         return arguments;
+    }
+
+    private void AddStageSkipFlags(List<string> arguments)
+    {
+        AddSkipFlag(arguments, ProjectModelCheckBox, "--skip-project-model");
+        AddSkipFlag(arguments, SourceCheckBox, "--skip-source");
+        AddSkipFlag(arguments, DllCheckBox, "--skip-dll");
+        AddSkipFlag(arguments, UnityYamlCheckBox, "--skip-unity-yaml");
+        AddSkipFlag(arguments, HybridClrCheckBox, "--skip-hybridclr");
+        AddSkipFlag(arguments, YooAssetCheckBox, "--skip-yooasset");
+        AddSkipFlag(arguments, ConfigCheckBox, "--skip-config");
+        AddSkipFlag(arguments, ModulesCheckBox, "--skip-modules");
+    }
+
+    private static void AddSkipFlag(List<string> arguments, CheckBox checkBox, string flag)
+    {
+        if (checkBox.IsChecked != true)
+        {
+            arguments.Add(flag);
+        }
     }
 
     private static void AddSingle(List<string> arguments, string option, string? value, List<string> coveredRoots)
@@ -825,6 +894,57 @@ public partial class MainWindow : Window
             .Concat(additions.Where(path => !string.IsNullOrWhiteSpace(path)))
             .Select(path => path.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void SetStageOptions(
+        bool projectModel,
+        bool source,
+        bool dll,
+        bool unityYaml,
+        bool hybridClr,
+        bool yooAsset,
+        bool config,
+        bool modules)
+    {
+        _isUpdatingStageOptions = true;
+        try
+        {
+            ProjectModelCheckBox.IsChecked = projectModel;
+            SourceCheckBox.IsChecked = source;
+            DllCheckBox.IsChecked = dll;
+            UnityYamlCheckBox.IsChecked = unityYaml;
+            HybridClrCheckBox.IsChecked = hybridClr;
+            YooAssetCheckBox.IsChecked = yooAsset;
+            ConfigCheckBox.IsChecked = config;
+            ModulesCheckBox.IsChecked = modules;
+        }
+        finally
+        {
+            _isUpdatingStageOptions = false;
+        }
+
+        UpdateStageOptionSummary();
+        ResetStages();
+    }
+
+    private void UpdateStageOptionSummary()
+    {
+        var skipped = GetSkippedStageLabels().ToArray();
+        StageOptionSummaryText.Text = skipped.Length == 0
+            ? "当前为完整分析。"
+            : $"将跳过: {string.Join("、", skipped)}。";
+    }
+
+    private IEnumerable<string> GetSkippedStageLabels()
+    {
+        if (ProjectModelCheckBox.IsChecked != true) yield return "项目模型";
+        if (SourceCheckBox.IsChecked != true) yield return "C# 源码";
+        if (DllCheckBox.IsChecked != true) yield return "DLL 元数据";
+        if (UnityYamlCheckBox.IsChecked != true) yield return "Unity YAML";
+        if (HybridClrCheckBox.IsChecked != true) yield return "HybridCLR";
+        if (YooAssetCheckBox.IsChecked != true) yield return "YooAsset";
+        if (ConfigCheckBox.IsChecked != true) yield return "配置引用";
+        if (ModulesCheckBox.IsChecked != true) yield return "模块推断";
     }
 
     private void SetAutoText(TextBox target, string value)

@@ -30,6 +30,15 @@ public sealed class ProjectAnalyzer
         foreach (var stage in _stages)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (!config.Stages.IsEnabled(stage.Kind))
+            {
+                var skipped = new AnalysisStageResult(stage.Kind, AnalysisStageStatus.Skipped, $"{stage.Kind} skipped by configuration.");
+                stageResults.Add(skipped);
+                reporter.StageFinished(skipped);
+                continue;
+            }
+
             reporter.StageStarted(stage.Kind, $"Starting {stage.Kind}");
 
             try

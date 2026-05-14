@@ -52,6 +52,51 @@ public sealed class UnityYamlResilienceTests
         }
     }
 
+    [Fact]
+    public static async Task DisabledUnityYamlStageIsSkippedAndReportStillBuilds()
+    {
+        var root = CreateTempDirectory("oua-yaml-skip-root");
+        var output = CreateTempDirectory("oua-yaml-skip-output");
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "Assets"));
+            Directory.CreateDirectory(Path.Combine(root, "Packages"));
+            Directory.CreateDirectory(Path.Combine(root, "ProjectSettings"));
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "Assets", "Scene.unity"),
+                """
+                %YAML 1.1
+                --- !u!1 &100
+                GameObject:
+                  m_Name: SkippedSceneObject
+                """);
+
+            var analyzer = AnalyzerPipelineFactory.CreateDefault();
+            var result = await analyzer.AnalyzeAsync(new AnalyzerConfig
+            {
+                UnityProject = root,
+                Output = output,
+                StrictReadonly = true,
+                Stages = new StageSelection
+                {
+                    UnityYamlRawIndex = false
+                }
+            });
+
+            Assert.True(File.Exists(Path.Combine(output, "report", "report.html")), "Report should still be generated.");
+            Assert.Contains(result.Stages, stage => stage.Stage == AnalysisStageKind.UnityYamlRawIndex
+                && stage.Status == AnalysisStageStatus.Skipped);
+            Assert.Contains(result.Stages, stage => stage.Stage == AnalysisStageKind.ReportExport
+                && stage.Status == AnalysisStageStatus.Completed);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+            DeleteDirectory(output);
+        }
+    }
+
     private static string CreateTempDirectory(string prefix)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");

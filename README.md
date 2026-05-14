@@ -18,6 +18,7 @@ OfflineUnityAnalyzer is an offline, read-only Unity project understanding tool. 
 - [Why](#why)
 - [Highlights](#highlights)
 - [Quick Start](#quick-start)
+- [Selective Analysis](#selective-analysis)
 - [Architecture](#architecture)
 - [What Gets Indexed](#what-gets-indexed)
 - [Analysis Output](#analysis-output)
@@ -73,6 +74,35 @@ OfflineUnityAnalyzer.Cli.exe analyze ^
   --out D:\AnalyzerOutput ^
   --strict-readonly
 ```
+
+## Selective Analysis
+
+Large projects do not always need a full pass. The GUI includes an `分析范围` panel where each analyzer can be toggled. `快速模式` keeps project model, C# source, HybridCLR, YooAsset, and module inference enabled, while skipping heavier DLL, Unity YAML, and config scans.
+
+The same controls are available in the CLI:
+
+```bat
+OfflineUnityAnalyzer.Cli.exe analyze ^
+  --unity D:\UnityProject ^
+  --out D:\AnalyzerOutput ^
+  --strict-readonly ^
+  --skip-unity-yaml ^
+  --skip-config
+```
+
+Available skip flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--skip-project-model` | Skip `.sln`, `.csproj`, `.asmdef`, package model parsing |
+| `--skip-source` | Skip C# type/member indexing |
+| `--skip-dll` | Skip `.dll` and `.dll.bytes` metadata indexing |
+| `--skip-unity-yaml` | Skip scene, prefab, and Unity asset YAML parsing |
+| `--skip-hybridclr` | Skip HybridCLR evidence detection |
+| `--skip-yooasset` | Skip YooAsset evidence, manifests, and code reference scan |
+| `--skip-config` | Skip JSON, CSV, XML, and readable `.bytes` shallow reference scan |
+| `--skip-modules` | Skip module inference |
+| `--skip-report` | Skip offline report export |
 
 ## Architecture
 

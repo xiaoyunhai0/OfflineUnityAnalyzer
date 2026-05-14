@@ -13,6 +13,17 @@
   "output": "D:/AnalyzerOutput",
   "strictReadonly": true,
   "analyzeCallGraph": true,
+  "stages": {
+    "projectModel": true,
+    "sourceSyntaxIndex": true,
+    "dllIndex": true,
+    "unityYamlRawIndex": true,
+    "hybridClrIndex": true,
+    "yooAssetIndex": true,
+    "configShallowIndex": true,
+    "moduleInference": true,
+    "reportExport": true
+  },
   "excludePatterns": [
     ".git",
     ".vs",

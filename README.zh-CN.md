@@ -18,6 +18,7 @@ OfflineUnityAnalyzer 是一个离线、只读的 Unity 项目理解工具。它�
 - [为什么需要](#为什么需要)
 - [功能亮点](#功能亮点)
 - [快速开始](#快速开始)
+- [选择性分析](#选择性分析)
 - [架构](#架构)
 - [当前索引内容](#当前索引内容)
 - [分析输出](#分析输出)
@@ -73,6 +74,35 @@ OfflineUnityAnalyzer.Cli.exe analyze ^
   --out D:\AnalyzerOutput ^
   --strict-readonly
 ```
+
+## 选择性分析
+
+大型项目不一定每次都需要全量分析。GUI 里新增了 `分析范围` 面板，每个分析器都可以独立开关。`快速模式` 会保留项目模型、C# 源码、HybridCLR、YooAsset 和模块推断，同时跳过更耗时的 DLL、Unity YAML 和配置扫描。
+
+CLI 也支持同样能力：
+
+```bat
+OfflineUnityAnalyzer.Cli.exe analyze ^
+  --unity D:\UnityProject ^
+  --out D:\AnalyzerOutput ^
+  --strict-readonly ^
+  --skip-unity-yaml ^
+  --skip-config
+```
+
+可用跳过参数：
+
+| 参数 | 效果 |
+| --- | --- |
+| `--skip-project-model` | 跳过 `.sln`、`.csproj`、`.asmdef`、包模型解析 |
+| `--skip-source` | 跳过 C# 类型/成员索引 |
+| `--skip-dll` | 跳过 `.dll` 和 `.dll.bytes` 元数据索引 |
+| `--skip-unity-yaml` | 跳过 Scene、Prefab 和 Unity Asset YAML 解析 |
+| `--skip-hybridclr` | 跳过 HybridCLR 线索检测 |
+| `--skip-yooasset` | 跳过 YooAsset 线索、Manifest 和代码引用扫描 |
+| `--skip-config` | 跳过 JSON、CSV、XML、可读 `.bytes` 浅层引用扫描 |
+| `--skip-modules` | 跳过模块推断 |
+| `--skip-report` | 跳过离线报告导出 |
 
 ## 架构
 
