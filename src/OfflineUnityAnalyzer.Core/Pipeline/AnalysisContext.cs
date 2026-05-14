@@ -10,6 +10,7 @@ public sealed class AnalysisContext
     private readonly List<string> _warnings = new();
     private readonly List<string> _errors = new();
     private readonly List<SourceTypeInfo> _sourceTypes = new();
+    private readonly List<SourceTypeRelationInfo> _sourceTypeRelations = new();
     private readonly List<AssemblyMetadataInfo> _assemblies = new();
     private readonly List<UnityAssetInfo> _unityAssets = new();
     private readonly List<UnityScriptReferenceInfo> _unityScriptReferences = new();
@@ -41,6 +42,8 @@ public sealed class AnalysisContext
     public IReadOnlyList<string> Errors => _errors;
 
     public IReadOnlyList<SourceTypeInfo> SourceTypes => _sourceTypes;
+
+    public IReadOnlyList<SourceTypeRelationInfo> SourceTypeRelations => _sourceTypeRelations;
 
     public IReadOnlyList<AssemblyMetadataInfo> Assemblies => _assemblies;
 
@@ -86,6 +89,11 @@ public sealed class AnalysisContext
     public void AddSourceType(SourceTypeInfo type)
     {
         _sourceTypes.Add(type);
+    }
+
+    public void AddSourceTypeRelation(SourceTypeRelationInfo relation)
+    {
+        _sourceTypeRelations.Add(relation);
     }
 
     public void AddAssembly(AssemblyMetadataInfo assembly)

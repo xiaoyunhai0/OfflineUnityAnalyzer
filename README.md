@@ -43,8 +43,8 @@ Use it when you want to answer:
 - **Readonly guard**: input roots are registered as read-only; output must stay outside them.
 - **GUI-first workflow**: select a Unity root, auto-discover likely inputs, run analysis, open the report.
 - **CLI automation**: repeatable `analyze` and `serve` entry points for scripts and local automation.
-- **Unity-aware indexing**: C# types, project model files, DLL metadata, Unity YAML objects, GameObjects, Components, asset references, HybridCLR clues, YooAsset assets, and config references.
-- **Local report export**: JSON data plus an offline static HTML report.
+- **Unity-aware indexing**: C# types, code relationships, project model files, DLL metadata, Unity YAML objects, GameObjects, Components, asset references, HybridCLR clues, YooAsset assets, and config references.
+- **Project map report**: an offline HTML report focused on modules, important types, code relations, Unity bindings, asset chains, and diagnostics.
 
 ## Quick Start
 
@@ -163,7 +163,7 @@ flowchart TB
 
 | Domain | Current signals |
 | --- | --- |
-| C# source | type names, namespaces, members, serialized fields, MonoBehaviour and ScriptableObject hints |
+| C# source | type names, namespaces, members, serialized fields, MonoBehaviour/ScriptableObject hints, and inferred type relationships |
 | Project model | `.sln`, `.csproj`, `.asmdef`, `.asmref`, `Packages/manifest.json`, package lock files |
 | Managed assemblies | `.dll`, `.dll.bytes`, assembly name, version, public key token, hot-update hints |
 | Unity assets | scenes, prefabs, assets, controllers, materials, animations, `.meta` GUID data |
@@ -181,6 +181,7 @@ AnalyzerOutput/
   summary.json
   data/
     types.json
+    source-relations.json
     project-model.json
     modules.json
     assemblies.json

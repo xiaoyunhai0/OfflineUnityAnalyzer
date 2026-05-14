@@ -1266,6 +1266,11 @@ public partial class MainWindow : Window
                 codeRoots.Add(packages);
             }
 
+            if (Directory.Exists(projectSettings))
+            {
+                codeRoots.Add(projectSettings);
+            }
+
             AddIfDirectory(codeRoots, Path.Combine(normalizedRoot, "Assets", "Scripts"));
             AddIfDirectory(codeRoots, Path.Combine(normalizedRoot, "Assets", "Game"));
             AddIfDirectory(codeRoots, Path.Combine(normalizedRoot, "Assets", "HotUpdate"));

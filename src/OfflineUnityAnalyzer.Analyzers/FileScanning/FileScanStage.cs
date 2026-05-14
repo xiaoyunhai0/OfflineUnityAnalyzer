@@ -1,6 +1,7 @@
 using OfflineUnityAnalyzer.Core.Configuration;
 using OfflineUnityAnalyzer.Core.Models;
 using OfflineUnityAnalyzer.Core.Pipeline;
+using OfflineUnityAnalyzer.Core.Safety;
 
 namespace OfflineUnityAnalyzer.Analyzers.FileScanning;
 
@@ -12,8 +13,11 @@ public sealed class FileScanStage : IAnalyzerStage
     {
         var scanned = 0;
         var skipped = 0;
+        var scannedPaths = new HashSet<string>(OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal);
 
-        foreach (var root in context.PathGuard.InputRoots)
+        foreach (var root in ExpandScanRoots(context))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -26,6 +30,12 @@ public sealed class FileScanStage : IAnalyzerStage
             foreach (var file in EnumerateFilesSafe(root.Path, context.Config.ExcludePatterns, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var normalizedFile = Path.GetFullPath(file);
+                if (!scannedPaths.Add(normalizedFile))
+                {
+                    continue;
+                }
+
                 var kind = FileKindDetector.Detect(file);
 
                 if (kind == ProjectFileKind.Unknown)
@@ -53,6 +63,70 @@ public sealed class FileScanStage : IAnalyzerStage
             : $"Scanned {scanned} files. Skipped {skipped} missing roots.";
 
         return new AnalysisStageResult(Kind, AnalysisStageStatus.Completed, message);
+    }
+
+    private static IReadOnlyList<RegisteredRoot> ExpandScanRoots(AnalysisContext context)
+    {
+        var roots = new List<RegisteredRoot>();
+        foreach (var root in context.PathGuard.InputRoots)
+        {
+            roots.Add(root);
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.Config.UnityProject))
+        {
+            var unityRoot = Path.GetFullPath(context.Config.UnityProject);
+            AddIfDirectory(roots, Path.Combine(unityRoot, "Assets"), "unity-assets");
+            AddIfDirectory(roots, Path.Combine(unityRoot, "Packages"), "unity-packages");
+            AddIfDirectory(roots, Path.Combine(unityRoot, "ProjectSettings"), "unity-settings");
+        }
+
+        return CompactRoots(roots);
+    }
+
+    private static void AddIfDirectory(List<RegisteredRoot> roots, string path, string label)
+    {
+        if (Directory.Exists(path))
+        {
+            roots.Add(new RegisteredRoot(Path.GetFullPath(path), PathRole.Input, label));
+        }
+    }
+
+    private static IReadOnlyList<RegisteredRoot> CompactRoots(IEnumerable<RegisteredRoot> roots)
+    {
+        var ordered = roots
+            .Where(root => Directory.Exists(root.Path))
+            .Select(root => root with { Path = Path.GetFullPath(root.Path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) })
+            .DistinctBy(root => root.Path, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .OrderBy(root => root.Path.Length)
+            .ToList();
+        var result = new List<RegisteredRoot>();
+
+        foreach (var root in ordered)
+        {
+            if (!result.Any(existing => ContainsPath(existing.Path, root.Path)))
+            {
+                result.Add(root);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool ContainsPath(string root, string path)
+    {
+        var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (OperatingSystem.IsWindows())
+        {
+            normalizedRoot = normalizedRoot.ToUpperInvariant();
+            normalizedPath = normalizedPath.ToUpperInvariant();
+        }
+
+        return normalizedPath.Equals(normalizedRoot, StringComparison.Ordinal)
+            || normalizedPath.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || normalizedPath.StartsWith(normalizedRoot + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateFilesSafe(

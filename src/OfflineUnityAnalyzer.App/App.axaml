@@ -9,6 +9,12 @@
       <Setter Property="Background" Value="#F3F6FA" />
       <Setter Property="Foreground" Value="#1F2933" />
     </Style>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#1F2933" />
+    </Style>
+    <Style Selector="TextBox /template/ TextBlock#PART_Watermark">
+      <Setter Property="Foreground" Value="#60758F" />
+    </Style>
     <Style Selector="TextBox">
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="MinHeight" Value="34" />
@@ -19,6 +25,11 @@
       <Setter Property="SelectionBrush" Value="#BFDBFE" />
       <Setter Property="BorderBrush" Value="#BCCCDC" />
       <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBox:disabled">
+      <Setter Property="Background" Value="#EEF2F6" />
+      <Setter Property="Foreground" Value="#52606D" />
+      <Setter Property="BorderBrush" Value="#D9E2EC" />
     </Style>
     <Style Selector="TextBox:pointerover">
       <Setter Property="Background" Value="#FFFFFF" />
@@ -48,23 +59,74 @@
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="12,7" />
       <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Background" Value="#EEF2F6" />
+      <Setter Property="Foreground" Value="#1F2933" />
+      <Setter Property="BorderBrush" Value="#CBD5E1" />
+    </Style>
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="#E2E8F0" />
+      <Setter Property="Foreground" Value="#111827" />
+      <Setter Property="BorderBrush" Value="#94A3B8" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="Background" Value="#CBD5E1" />
+      <Setter Property="Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Background" Value="#E5E7EB" />
+      <Setter Property="Foreground" Value="#6B7280" />
+      <Setter Property="BorderBrush" Value="#D1D5DB" />
     </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="#2563EB" />
       <Setter Property="Foreground" Value="White" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="#1D4ED8" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pressed">
+      <Setter Property="Background" Value="#1E40AF" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
     <Style Selector="Button.secondary">
       <Setter Property="Background" Value="#E7F5EF" />
+      <Setter Property="Foreground" Value="#0F766E" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover">
+      <Setter Property="Background" Value="#CCFBF1" />
       <Setter Property="Foreground" Value="#0F766E" />
     </Style>
     <Style Selector="Button.ghost">
       <Setter Property="Background" Value="#243447" />
       <Setter Property="Foreground" Value="White" />
     </Style>
+    <Style Selector="Button.ghost:pointerover">
+      <Setter Property="Background" Value="#334E68" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
     <Style Selector="Button.quiet">
       <Setter Property="Background" Value="#EEF2F6" />
       <Setter Property="Foreground" Value="#1F2933" />
+    </Style>
+    <Style Selector="Button.quiet:pointerover">
+      <Setter Property="Background" Value="#E2E8F0" />
+      <Setter Property="Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="#1F2933" />
+      <Setter Property="MinHeight" Value="30" />
+    </Style>
+    <Style Selector="CheckBox:pointerover">
+      <Setter Property="Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="CheckBox:disabled">
+      <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="Foreground" Value="#2563EB" />
+      <Setter Property="Background" Value="#D9E2EC" />
     </Style>
     <Style Selector="Border.metric">
       <Setter Property="Background" Value="White" />

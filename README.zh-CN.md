@@ -43,8 +43,8 @@ OfflineUnityAnalyzer 是一个离线、只读的 Unity 项目理解工具。它�
 - **只读保护**：输入根目录注册为只读，输出目录必须位于输入目录之外。
 - **GUI 优先**：选择 Unity 根目录后自动发现路径，运行分析，打开报告。
 - **CLI 自动化**：提供可重复执行的 `analyze` 和 `serve` 入口，适合本地脚本化流程。
-- **Unity 语义索引**：支持 C# 类型、项目模型文件、DLL 元数据、Unity YAML 对象、GameObject、Component、资源引用、HybridCLR 线索、YooAsset 资源、配置引用。
-- **本地报告导出**：输出 JSON 数据和离线静态 HTML 报告。
+- **Unity 语义索引**：支持 C# 类型、代码关系、项目模型文件、DLL 元数据、Unity YAML 对象、GameObject、Component、资源引用、HybridCLR 线索、YooAsset 资源、配置引用。
+- **项目地图报告**：离线 HTML 报告会优先展示模块、重点类型、代码关系、Unity 绑定、资源链路和诊断信息。
 
 ## 快速开始
 
@@ -163,7 +163,7 @@ flowchart TB
 
 | 领域 | 当前线索 |
 | --- | --- |
-| C# 源码 | 类型名、命名空间、成员、序列化字段、MonoBehaviour 和 ScriptableObject 线索 |
+| C# 源码 | 类型名、命名空间、成员、序列化字段、MonoBehaviour/ScriptableObject 线索和推断出的类型关系 |
 | 项目模型 | `.sln`、`.csproj`、`.asmdef`、`.asmref`、`Packages/manifest.json`、package lock |
 | 托管程序集 | `.dll`、`.dll.bytes`、程序集名、版本、公钥 Token、热更新线索 |
 | Unity 资源 | Scene、Prefab、Asset、Controller、Material、Animation、`.meta` GUID 数据 |
@@ -181,6 +181,7 @@ AnalyzerOutput/
   summary.json
   data/
     types.json
+    source-relations.json
     project-model.json
     modules.json
     assemblies.json
