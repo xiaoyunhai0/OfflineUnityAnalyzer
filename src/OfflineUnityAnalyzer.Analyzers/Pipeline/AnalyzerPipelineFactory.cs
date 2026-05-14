@@ -22,6 +22,7 @@ public static class AnalyzerPipelineFactory
             new ProjectModelStage(),
             new SourceAnalysisStage(),
             new AssemblyAnalysisStage(),
+            new CodeAssemblyBridgeStage(),
             new UnityYamlAnalysisStage(),
             new HybridClrAnalysisStage(),
             new YooAssetAnalysisStage(),

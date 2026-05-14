@@ -10,6 +10,8 @@ public sealed record StageSelection
 
     public bool DllIndex { get; init; } = true;
 
+    public bool TypeMerge { get; init; } = true;
+
     public bool UnityYamlRawIndex { get; init; } = true;
 
     public bool HybridClrIndex { get; init; } = true;
@@ -31,6 +33,7 @@ public sealed record StageSelection
             AnalysisStageKind.ProjectModel => ProjectModel,
             AnalysisStageKind.SourceSyntaxIndex => SourceSyntaxIndex,
             AnalysisStageKind.DllIndex => DllIndex,
+            AnalysisStageKind.TypeMerge => TypeMerge,
             AnalysisStageKind.UnityYamlRawIndex => UnityYamlRawIndex,
             AnalysisStageKind.HybridClrIndex => HybridClrIndex,
             AnalysisStageKind.YooAssetIndex => YooAssetIndex,

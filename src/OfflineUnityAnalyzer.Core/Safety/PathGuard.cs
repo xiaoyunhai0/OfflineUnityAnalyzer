@@ -31,6 +31,7 @@ public sealed class PathGuard
         AddExistingDirectoryRoot(roots, config.UnityProject, "unity");
         AddExistingDirectoryRoots(roots, config.DllRoots, "dll");
         AddExistingDirectoryRoots(roots, config.YooAssetManifestRoots, "yooasset");
+        AddAutoDiscoveredSiblingCodeRoots(roots, config);
 
         if (!string.IsNullOrWhiteSpace(config.SolutionPath))
         {
@@ -129,6 +130,123 @@ public sealed class PathGuard
         if (Directory.Exists(normalized))
         {
             roots.Add(new RegisteredRoot(normalized, PathRole.Input, label));
+        }
+    }
+
+    private static void AddAutoDiscoveredSiblingCodeRoots(List<RegisteredRoot> roots, AnalyzerConfig config)
+    {
+        if (!config.AutoDiscoverSiblingCodeRoots
+            || string.IsNullOrWhiteSpace(config.UnityProject)
+            || !Directory.Exists(config.UnityProject))
+        {
+            return;
+        }
+
+        var unityRoot = NormalizeDirectory(config.UnityProject);
+        var parent = Directory.GetParent(unityRoot);
+        if (parent is null)
+        {
+            return;
+        }
+
+        foreach (var directory in SafeEnumerateDirectories(parent.FullName).Take(80))
+        {
+            var normalized = NormalizeDirectory(directory);
+            if (ContainsPath(normalized, unityRoot) || ContainsPath(unityRoot, normalized))
+            {
+                continue;
+            }
+
+            if (LooksLikeSourceRoot(normalized))
+            {
+                roots.Add(new RegisteredRoot(normalized, PathRole.Input, "auto-code"));
+            }
+        }
+    }
+
+    private static bool LooksLikeSourceRoot(string path)
+    {
+        var name = Path.GetFileName(path);
+        var nameLooksRight = name.Contains("code", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("client", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("script", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("hot", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("logic", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("src", StringComparison.OrdinalIgnoreCase);
+
+        return HasFile(path, ".sln", 2)
+            || HasFile(path, ".csproj", 3)
+            || HasFile(path, ".asmdef", 4)
+            || (nameLooksRight && HasFile(path, ".cs", 4));
+    }
+
+    private static bool HasFile(string root, string extension, int maxDepth)
+    {
+        var pending = new Stack<(string Path, int Depth)>();
+        pending.Push((root, 0));
+        var visited = 0;
+
+        while (pending.Count > 0 && visited < 12000)
+        {
+            var (current, depth) = pending.Pop();
+            if (IsExcludedAutoDirectory(current))
+            {
+                continue;
+            }
+
+            foreach (var file in SafeEnumerateFiles(current))
+            {
+                visited++;
+                if (file.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+
+            foreach (var directory in SafeEnumerateDirectories(current))
+            {
+                if (!IsExcludedAutoDirectory(directory))
+                {
+                    pending.Push((directory, depth + 1));
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsExcludedAutoDirectory(string path)
+    {
+        var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return DefaultExcludePatterns.All.Any(pattern => name.Equals(pattern, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IEnumerable<string> SafeEnumerateDirectories(string path)
+    {
+        try
+        {
+            return Directory.EnumerateDirectories(path).ToArray();
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or DirectoryNotFoundException or IOException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static IEnumerable<string> SafeEnumerateFiles(string path)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(path).ToArray();
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or DirectoryNotFoundException or IOException)
+        {
+            return Array.Empty<string>();
         }
     }
 

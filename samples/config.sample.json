@@ -13,10 +13,12 @@
   "output": "D:/AnalyzerOutput",
   "strictReadonly": true,
   "analyzeCallGraph": true,
+  "autoDiscoverSiblingCodeRoots": true,
   "stages": {
     "projectModel": true,
     "sourceSyntaxIndex": true,
     "dllIndex": true,
+    "typeMerge": true,
     "unityYamlRawIndex": true,
     "hybridClrIndex": true,
     "yooAssetIndex": true,

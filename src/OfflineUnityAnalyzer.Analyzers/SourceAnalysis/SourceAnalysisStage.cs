@@ -570,6 +570,15 @@ public sealed class SourceAnalysisStage : IAnalyzerStage
             return asmdef.Name;
         }
 
+        var project = context.ProjectModel.CSharpProjects
+            .Where(item => ContainsPath(Path.GetDirectoryName(item.Path) ?? string.Empty, file.FullPath))
+            .OrderByDescending(item => item.Path.Length)
+            .FirstOrDefault();
+        if (project is not null)
+        {
+            return project.AssemblyName;
+        }
+
         return IsEditorFile(file) ? "Assembly-CSharp-Editor" : "Assembly-CSharp";
     }
 

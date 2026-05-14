@@ -11,6 +11,7 @@ public sealed class AnalysisContext
     private readonly List<string> _errors = new();
     private readonly List<SourceTypeInfo> _sourceTypes = new();
     private readonly List<SourceTypeRelationInfo> _sourceTypeRelations = new();
+    private readonly List<CodeAssemblyBridgeInfo> _codeAssemblyBridges = new();
     private readonly List<AssemblyMetadataInfo> _assemblies = new();
     private readonly List<UnityAssetInfo> _unityAssets = new();
     private readonly List<UnityScriptReferenceInfo> _unityScriptReferences = new();
@@ -44,6 +45,8 @@ public sealed class AnalysisContext
     public IReadOnlyList<SourceTypeInfo> SourceTypes => _sourceTypes;
 
     public IReadOnlyList<SourceTypeRelationInfo> SourceTypeRelations => _sourceTypeRelations;
+
+    public IReadOnlyList<CodeAssemblyBridgeInfo> CodeAssemblyBridges => _codeAssemblyBridges;
 
     public IReadOnlyList<AssemblyMetadataInfo> Assemblies => _assemblies;
 
@@ -94,6 +97,11 @@ public sealed class AnalysisContext
     public void AddSourceTypeRelation(SourceTypeRelationInfo relation)
     {
         _sourceTypeRelations.Add(relation);
+    }
+
+    public void AddCodeAssemblyBridge(CodeAssemblyBridgeInfo bridge)
+    {
+        _codeAssemblyBridges.Add(bridge);
     }
 
     public void AddAssembly(AssemblyMetadataInfo assembly)

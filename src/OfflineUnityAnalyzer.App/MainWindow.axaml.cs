@@ -21,6 +21,7 @@ public partial class MainWindow : Window
         "ProjectModel",
         "SourceSyntaxIndex",
         "DllIndex",
+        "TypeMerge",
         "UnityYamlRawIndex",
         "HybridClrIndex",
         "YooAssetIndex",
@@ -98,6 +99,7 @@ public partial class MainWindow : Window
             projectModel: true,
             source: true,
             dll: true,
+            typeMerge: true,
             unityYaml: true,
             hybridClr: true,
             yooAsset: true,
@@ -111,6 +113,7 @@ public partial class MainWindow : Window
             projectModel: true,
             source: true,
             dll: false,
+            typeMerge: true,
             unityYaml: false,
             hybridClr: true,
             yooAsset: true,
@@ -158,6 +161,7 @@ public partial class MainWindow : Window
             projectModel: true,
             source: true,
             dll: true,
+            typeMerge: true,
             unityYaml: true,
             hybridClr: true,
             yooAsset: true,
@@ -729,6 +733,7 @@ public partial class MainWindow : Window
         AddSkipFlag(arguments, ProjectModelCheckBox, "--skip-project-model");
         AddSkipFlag(arguments, SourceCheckBox, "--skip-source");
         AddSkipFlag(arguments, DllCheckBox, "--skip-dll");
+        AddSkipFlag(arguments, TypeMergeCheckBox, "--skip-type-merge");
         AddSkipFlag(arguments, UnityYamlCheckBox, "--skip-unity-yaml");
         AddSkipFlag(arguments, HybridClrCheckBox, "--skip-hybridclr");
         AddSkipFlag(arguments, YooAssetCheckBox, "--skip-yooasset");
@@ -900,6 +905,7 @@ public partial class MainWindow : Window
         bool projectModel,
         bool source,
         bool dll,
+        bool typeMerge,
         bool unityYaml,
         bool hybridClr,
         bool yooAsset,
@@ -912,6 +918,7 @@ public partial class MainWindow : Window
             ProjectModelCheckBox.IsChecked = projectModel;
             SourceCheckBox.IsChecked = source;
             DllCheckBox.IsChecked = dll;
+            TypeMergeCheckBox.IsChecked = typeMerge;
             UnityYamlCheckBox.IsChecked = unityYaml;
             HybridClrCheckBox.IsChecked = hybridClr;
             YooAssetCheckBox.IsChecked = yooAsset;
@@ -940,6 +947,7 @@ public partial class MainWindow : Window
         if (ProjectModelCheckBox.IsChecked != true) yield return "项目模型";
         if (SourceCheckBox.IsChecked != true) yield return "C# 源码";
         if (DllCheckBox.IsChecked != true) yield return "DLL 元数据";
+        if (TypeMergeCheckBox.IsChecked != true) yield return "源码/DLL 合并";
         if (UnityYamlCheckBox.IsChecked != true) yield return "Unity YAML";
         if (HybridClrCheckBox.IsChecked != true) yield return "HybridCLR";
         if (YooAssetCheckBox.IsChecked != true) yield return "YooAsset";
@@ -1058,6 +1066,7 @@ public partial class MainWindow : Window
             "ProjectModel" => "项目模型",
             "SourceSyntaxIndex" => "C# 类型索引",
             "DllIndex" => "DLL 索引",
+            "TypeMerge" => "源码/DLL 合并",
             "UnityYamlRawIndex" => "Unity YAML",
             "HybridClrIndex" => "HybridCLR",
             "YooAssetIndex" => "YooAsset",

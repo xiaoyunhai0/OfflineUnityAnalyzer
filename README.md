@@ -63,6 +63,8 @@ Recommended GUI flow:
 5. Click `开始分析`.
 6. Open the generated report from the top-right `打开报告` button.
 
+Split-project layouts are supported. If your precompiled C# source lives next to the Unity project while Unity only contains compiled DLLs, keep `AutoDiscoverSiblingCodeRoots` enabled or add the source folder with `--code`. The analyzer will index both roots and link source types back to matching compiled DLL metadata.
+
 CLI equivalent:
 
 ```bat
@@ -97,12 +99,14 @@ Available skip flags:
 | `--skip-project-model` | Skip `.sln`, `.csproj`, `.asmdef`, package model parsing |
 | `--skip-source` | Skip C# type/member indexing |
 | `--skip-dll` | Skip `.dll` and `.dll.bytes` metadata indexing |
+| `--skip-type-merge` | Skip source-to-compiled-DLL matching |
 | `--skip-unity-yaml` | Skip scene, prefab, and Unity asset YAML parsing |
 | `--skip-hybridclr` | Skip HybridCLR evidence detection |
 | `--skip-yooasset` | Skip YooAsset evidence, manifests, and code reference scan |
 | `--skip-config` | Skip JSON, CSV, XML, and readable `.bytes` shallow reference scan |
 | `--skip-modules` | Skip module inference |
 | `--skip-report` | Skip offline report export |
+| `--no-auto-discover-sibling-code` | Disable automatic sibling source-root discovery |
 
 ## Architecture
 
@@ -164,6 +168,7 @@ flowchart TB
 | Domain | Current signals |
 | --- | --- |
 | C# source | type names, namespaces, members, serialized fields, MonoBehaviour/ScriptableObject hints, and inferred type relationships |
+| Source/DLL bridge | external source types matched to compiled Unity DLL metadata, including hot-update assembly matches |
 | Project model | `.sln`, `.csproj`, `.asmdef`, `.asmref`, `Packages/manifest.json`, package lock files |
 | Managed assemblies | `.dll`, `.dll.bytes`, assembly name, version, public key token, hot-update hints |
 | Unity assets | scenes, prefabs, assets, controllers, materials, animations, `.meta` GUID data |
@@ -182,6 +187,7 @@ AnalyzerOutput/
   data/
     types.json
     source-relations.json
+    code-assembly-bridges.json
     project-model.json
     modules.json
     assemblies.json

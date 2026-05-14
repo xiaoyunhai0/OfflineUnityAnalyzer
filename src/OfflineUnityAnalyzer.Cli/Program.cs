@@ -172,6 +172,7 @@ namespace OfflineUnityAnalyzer.Cli
                 Output = options.Values.GetValueOrDefault("out") ?? config.Output,
                 StrictReadonly = options.Flags.Contains("strict-readonly") || config.StrictReadonly,
                 AnalyzeCallGraph = !options.Flags.Contains("no-call-graph") && config.AnalyzeCallGraph,
+                AutoDiscoverSiblingCodeRoots = !options.Flags.Contains("no-auto-discover-sibling-code") && config.AutoDiscoverSiblingCodeRoots,
                 Stages = ApplyStageFlags(config.Stages, options.Flags)
             };
         }
@@ -183,6 +184,7 @@ namespace OfflineUnityAnalyzer.Cli
                 ProjectModel = !flags.Contains("skip-project-model") && stages.ProjectModel,
                 SourceSyntaxIndex = !flags.Contains("skip-source") && stages.SourceSyntaxIndex,
                 DllIndex = !flags.Contains("skip-dll") && stages.DllIndex,
+                TypeMerge = !flags.Contains("skip-type-merge") && stages.TypeMerge,
                 UnityYamlRawIndex = !flags.Contains("skip-unity-yaml") && stages.UnityYamlRawIndex,
                 HybridClrIndex = !flags.Contains("skip-hybridclr") && stages.HybridClrIndex,
                 YooAssetIndex = !flags.Contains("skip-yooasset") && stages.YooAssetIndex,
@@ -229,6 +231,7 @@ namespace OfflineUnityAnalyzer.Cli
             Console.WriteLine("  --skip-project-model        Skip .sln/.csproj/.asmdef/package model parsing");
             Console.WriteLine("  --skip-source               Skip C# source type/member indexing");
             Console.WriteLine("  --skip-dll                  Skip DLL and .dll.bytes metadata indexing");
+            Console.WriteLine("  --skip-type-merge           Skip source-to-compiled-DLL matching");
             Console.WriteLine("  --skip-unity-yaml           Skip scene/prefab/asset YAML parsing");
             Console.WriteLine("  --skip-hybridclr            Skip HybridCLR evidence detection");
             Console.WriteLine("  --skip-yooasset             Skip YooAsset evidence, manifest, and code reference scan");
@@ -236,6 +239,7 @@ namespace OfflineUnityAnalyzer.Cli
             Console.WriteLine("  --skip-modules              Skip module inference");
             Console.WriteLine("  --skip-report               Skip offline report export");
             Console.WriteLine("  --no-call-graph             Skip call graph stages when implemented");
+            Console.WriteLine("  --no-auto-discover-sibling-code  Do not scan sibling source roots near the Unity project");
             Console.WriteLine("  --progress-json             Emit machine-readable progress events");
             Console.WriteLine();
             Console.WriteLine("Serve options:");
@@ -261,12 +265,14 @@ namespace OfflineUnityAnalyzer.Cli
             "skip-project-model",
             "skip-source",
             "skip-dll",
+            "skip-type-merge",
             "skip-unity-yaml",
             "skip-hybridclr",
             "skip-yooasset",
             "skip-config",
             "skip-modules",
-            "skip-report"
+            "skip-report",
+            "no-auto-discover-sibling-code"
         };
 
         public Dictionary<string, string> Values { get; } = new(StringComparer.OrdinalIgnoreCase);

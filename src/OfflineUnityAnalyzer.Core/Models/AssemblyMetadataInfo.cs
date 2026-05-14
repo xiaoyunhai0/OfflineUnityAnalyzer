@@ -17,4 +17,10 @@ public sealed record AssemblyMetadataInfo
     public string Status { get; init; } = "ok";
 
     public string? Error { get; init; }
+
+    public IReadOnlyList<string> TypeNames { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> MonoBehaviourTypes { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> ScriptableObjectTypes { get; init; } = Array.Empty<string>();
 }

@@ -29,6 +29,7 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         WriteJson(context, "data/modules.json", context.Modules);
         WriteJson(context, "data/types.json", context.SourceTypes);
         WriteJson(context, "data/source-relations.json", context.SourceTypeRelations);
+        WriteJson(context, "data/code-assembly-bridges.json", context.CodeAssemblyBridges);
         WriteJson(context, "data/assemblies.json", context.Assemblies);
         WriteJson(context, "data/unity-assets.json", context.UnityAssets);
         WriteJson(context, "data/unity-script-refs.json", context.UnityScriptReferences);
@@ -61,6 +62,8 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             SourceTypeCount = context.SourceTypes.Count,
             SourceRelationCount = context.SourceTypeRelations.Count,
             ResolvedSourceRelationCount = context.SourceTypeRelations.Count(relation => relation.IsResolved),
+            CodeAssemblyBridgeCount = context.CodeAssemblyBridges.Count,
+            HotUpdateBridgeCount = context.CodeAssemblyBridges.Count(bridge => bridge.AssemblyKind == "hot_update"),
             MonoBehaviourCount = context.SourceTypes.Count(type => type.IsMonoBehaviour),
             ScriptableObjectCount = context.SourceTypes.Count(type => type.IsScriptableObject),
             SerializedFieldCount = context.SourceTypes.Sum(type => type.Members.Count(member => member.IsSerializedField)),
@@ -111,11 +114,13 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             .ToArray();
         var assetChains = BuildAssetChains(context).Take(160).ToArray();
         var projectModel = BuildProjectModel(context);
+        var codeAssemblyBridges = BuildCodeAssemblyBridges(context).Take(160).ToArray();
 
         return new
         {
             summary,
             projectModel,
+            codeAssemblyBridges,
             modules = moduleCards,
             topTypes,
             graph,
@@ -133,6 +138,7 @@ public sealed class ReportGenerationStage : IAnalyzerStage
                 "data/files.json",
                 "data/types.json",
                 "data/source-relations.json",
+                "data/code-assembly-bridges.json",
                 "data/unity-components.json",
                 "data/unity-asset-refs.json",
                 "data/yooasset.json",
@@ -275,6 +281,23 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             });
     }
 
+    private static IEnumerable<object> BuildCodeAssemblyBridges(AnalysisContext context)
+    {
+        return context.CodeAssemblyBridges
+            .OrderByDescending(bridge => bridge.Confidence == "high")
+            .ThenBy(bridge => bridge.SourceType, StringComparer.Ordinal)
+            .Select(bridge => new
+            {
+                sourceType = bridge.SourceType,
+                source = ShortPath(bridge.SourceFile),
+                assembly = bridge.AssemblyName,
+                assemblyKind = bridge.AssemblyKind,
+                assemblyPath = ShortPath(bridge.AssemblyPath),
+                bridge.MatchKind,
+                bridge.Confidence
+            });
+    }
+
     private static IEnumerable<object> BuildUnityBindings(AnalysisContext context)
     {
         return context.UnityComponents
@@ -345,6 +368,16 @@ public sealed class ReportGenerationStage : IAnalyzerStage
                 package.Name,
                 package.VersionOrSource,
                 package.Source
+            }),
+            assemblies = context.Assemblies.Take(160).Select(assembly => new
+            {
+                name = assembly.AssemblyName,
+                assembly.Kind,
+                path = ShortPath(assembly.Path),
+                typeCount = assembly.TypeNames.Count,
+                monoBehaviourCount = assembly.MonoBehaviourTypes.Count,
+                scriptableObjectCount = assembly.ScriptableObjectTypes.Count,
+                assembly.Status
             })
         };
     }
@@ -455,12 +488,13 @@ public sealed class ReportGenerationStage : IAnalyzerStage
     <div>
       <p class="eyebrow">Offline Unity project intelligence</p>
       <h1>Project Map</h1>
-      <p class="subtitle">A relationship-first report for code, scenes, prefabs, HybridCLR, YooAsset, and configuration evidence.</p>
+      <p class="subtitle">A relationship-first report for split source repositories, compiled Unity DLLs, scenes, prefabs, HybridCLR, YooAsset, and configuration evidence.</p>
     </div>
     <div class="header-actions">
       <button data-scroll="overview">Overview</button>
       <button data-scroll="modules">Modules</button>
       <button data-scroll="relations">Relations</button>
+      <button data-scroll="compiled">Compiled</button>
       <button data-scroll="unity">Unity</button>
       <button data-scroll="diagnostics">Diagnostics</button>
     </div>
@@ -508,6 +542,17 @@ public sealed class ReportGenerationStage : IAnalyzerStage
           <div class="toolbar"><input id="type-filter" type="search" placeholder="Filter types, assemblies, namespaces"></div>
           <div id="top-types"></div>
         </article>
+      </div>
+    </section>
+
+    <section id="compiled" class="section">
+      <div class="section-title">
+        <h2>Source To Compiled DLLs</h2>
+        <p>Shows how external C# source roots line up with compiled assemblies found inside the Unity project.</p>
+      </div>
+      <div class="split">
+        <article class="panel"><h3>Source/DLL Bridges</h3><div id="code-assembly-bridges"></div></article>
+        <article class="panel"><h3>DLL Type Index</h3><div id="dll-types"></div></article>
       </div>
     </section>
 
@@ -948,6 +993,7 @@ code {
   renderModules();
   renderGraph();
   renderTopTypes();
+  renderCompiled();
   renderUnity();
   renderProjectModel();
   renderDiagnostics();
@@ -958,6 +1004,7 @@ code {
       ["Files", summary.fileCount, "All indexed files after excludes"],
       ["C# Types", summary.sourceTypeCount, `${summary.monoBehaviourCount || 0} MonoBehaviour, ${summary.scriptableObjectCount || 0} ScriptableObject`],
       ["Relations", summary.sourceRelationCount, `${summary.resolvedSourceRelationCount || 0} resolved between indexed types`],
+      ["Source/DLL Bridges", summary.codeAssemblyBridgeCount, `${summary.hotUpdateBridgeCount || 0} hot-update matches`],
       ["Serialized Fields", summary.serializedFieldCount, "Public fields and [SerializeField] members"],
       ["Unity Bindings", summary.unityComponentCount, `${summary.unityGameObjectCount || 0} GameObjects indexed`],
       ["Asset Refs", summary.unityAssetReferenceCount, "Scene/prefab/material/config references"],
@@ -1084,6 +1131,24 @@ code {
     });
   }
 
+  function renderCompiled() {
+    renderTable("code-assembly-bridges", data.codeAssemblyBridges || [], [
+      ["Source Type", "sourceType"],
+      ["Source", "source"],
+      ["DLL", row => `${row.assembly} · ${row.assemblyKind}`],
+      ["Match", "matchKind"],
+      ["Confidence", "confidence"]
+    ]);
+    const assemblies = (data.projectModel && data.projectModel.assemblies) || [];
+    renderTable("dll-types", assemblies, [
+      ["Assembly", "name"],
+      ["Kind", "kind"],
+      ["Types", "typeCount"],
+      ["MonoBehaviour", "monoBehaviourCount"],
+      ["Path", "path"]
+    ]);
+  }
+
   function renderUnity() {
     renderTable("unity-bindings", data.unityBindings || [], [
       ["Asset", "asset"],
@@ -1181,6 +1246,8 @@ code {
         public int SourceTypeCount { get; init; }
         public int SourceRelationCount { get; init; }
         public int ResolvedSourceRelationCount { get; init; }
+        public int CodeAssemblyBridgeCount { get; init; }
+        public int HotUpdateBridgeCount { get; init; }
         public int MonoBehaviourCount { get; init; }
         public int ScriptableObjectCount { get; init; }
         public int SerializedFieldCount { get; init; }

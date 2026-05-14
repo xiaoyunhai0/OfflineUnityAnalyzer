@@ -18,6 +18,8 @@ public sealed record AnalyzerConfig
 
     public bool AnalyzeCallGraph { get; init; } = true;
 
+    public bool AutoDiscoverSiblingCodeRoots { get; init; } = true;
+
     public StageSelection Stages { get; init; } = new();
 
     public IReadOnlyList<string> ExcludePatterns { get; init; } = DefaultExcludePatterns.All;

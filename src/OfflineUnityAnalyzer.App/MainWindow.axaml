@@ -94,6 +94,7 @@
                   <CheckBox Name="ProjectModelCheckBox" Content="项目模型" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
                   <CheckBox Name="SourceCheckBox" Content="C# 源码" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
                   <CheckBox Name="DllCheckBox" Content="DLL 元数据" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
+                  <CheckBox Name="TypeMergeCheckBox" Content="源码/DLL 合并" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
                   <CheckBox Name="UnityYamlCheckBox" Content="Unity YAML" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
                   <CheckBox Name="HybridClrCheckBox" Content="HybridCLR" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />
                   <CheckBox Name="YooAssetCheckBox" Content="YooAsset" IsChecked="True" Checked="StageOption_Changed" Unchecked="StageOption_Changed" />

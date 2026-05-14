@@ -63,6 +63,8 @@ OfflineUnityAnalyzer.exe
 5. 点击 `开始分析`。
 6. 通过右上角 `打开报告` 查看结果。
 
+支持双项目结构。如果编译前 C# 源码在 Unity 工程旁边的另一个目录，而 Unity 工程里主要是编译后的 DLL，保持 `AutoDiscoverSiblingCodeRoots` 开启，或用 `--code` 追加源码目录。分析器会同时索引源码和 Unity DLL，并把源码类型匹配回编译后的 DLL 元数据。
+
 等价 CLI 示例：
 
 ```bat
@@ -97,12 +99,14 @@ OfflineUnityAnalyzer.Cli.exe analyze ^
 | `--skip-project-model` | 跳过 `.sln`、`.csproj`、`.asmdef`、包模型解析 |
 | `--skip-source` | 跳过 C# 类型/成员索引 |
 | `--skip-dll` | 跳过 `.dll` 和 `.dll.bytes` 元数据索引 |
+| `--skip-type-merge` | 跳过源码到编译 DLL 的匹配 |
 | `--skip-unity-yaml` | 跳过 Scene、Prefab 和 Unity Asset YAML 解析 |
 | `--skip-hybridclr` | 跳过 HybridCLR 线索检测 |
 | `--skip-yooasset` | 跳过 YooAsset 线索、Manifest 和代码引用扫描 |
 | `--skip-config` | 跳过 JSON、CSV、XML、可读 `.bytes` 浅层引用扫描 |
 | `--skip-modules` | 跳过模块推断 |
 | `--skip-report` | 跳过离线报告导出 |
+| `--no-auto-discover-sibling-code` | 关闭 Unity 工程同级源码目录自动发现 |
 
 ## 架构
 
@@ -164,6 +168,7 @@ flowchart TB
 | 领域 | 当前线索 |
 | --- | --- |
 | C# 源码 | 类型名、命名空间、成员、序列化字段、MonoBehaviour/ScriptableObject 线索和推断出的类型关系 |
+| 源码/DLL 桥接 | 外部源码类型匹配到 Unity 工程内编译 DLL 元数据，包括热更新程序集匹配 |
 | 项目模型 | `.sln`、`.csproj`、`.asmdef`、`.asmref`、`Packages/manifest.json`、package lock |
 | 托管程序集 | `.dll`、`.dll.bytes`、程序集名、版本、公钥 Token、热更新线索 |
 | Unity 资源 | Scene、Prefab、Asset、Controller、Material、Animation、`.meta` GUID 数据 |
@@ -182,6 +187,7 @@ AnalyzerOutput/
   data/
     types.json
     source-relations.json
+    code-assembly-bridges.json
     project-model.json
     modules.json
     assemblies.json
