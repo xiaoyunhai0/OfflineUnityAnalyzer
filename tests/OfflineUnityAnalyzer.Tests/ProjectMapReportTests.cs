@@ -97,6 +97,50 @@ public sealed class ProjectMapReportTests
         }
     }
 
+    [Fact]
+    public static async Task DuplicateFullTypeNamesDoNotFailSourceIndex()
+    {
+        var root = CreateTempDirectory("oua-duplicate-type-root");
+        var output = CreateTempDirectory("oua-duplicate-type-output");
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "Assets", "TextMeshProA"));
+            Directory.CreateDirectory(Path.Combine(root, "Assets", "TextMeshProB"));
+            Directory.CreateDirectory(Path.Combine(root, "Packages"));
+            Directory.CreateDirectory(Path.Combine(root, "ProjectSettings"));
+            await File.WriteAllTextAsync(Path.Combine(root, "Packages", "manifest.json"), "{\"dependencies\":{}}");
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "Assets", "TextMeshProA", "FastAction.cs"),
+                "namespace TMPro { public class FastAction { public TMP_Text text; } public class TMP_Text {} }");
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "Assets", "TextMeshProB", "FastAction.cs"),
+                "namespace TMPro { public class FastAction { public TMP_Text text; } public class TMP_Text {} }");
+
+            var analyzer = AnalyzerPipelineFactory.CreateDefault();
+            var result = await analyzer.AnalyzeAsync(new AnalyzerConfig
+            {
+                UnityProject = root,
+                Output = output,
+                StrictReadonly = true
+            });
+
+            Assert.False(result.HasErrors);
+            Assert.Contains(result.Stages, stage => stage.Stage == AnalysisStageKind.SourceSyntaxIndex
+                && stage.Status == AnalysisStageStatus.CompletedWithWarnings);
+            Assert.True(File.Exists(Path.Combine(output, "report", "report.html")));
+
+            var diagnosticsJson = await File.ReadAllTextAsync(Path.Combine(output, "data", "diagnostics.json"));
+            Assert.Contains("duplicate-source-type", diagnosticsJson);
+            Assert.Contains("TMPro.FastAction", diagnosticsJson);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+            DeleteDirectory(output);
+        }
+    }
+
     private static string CreateTempDirectory(string prefix)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");

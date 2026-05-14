@@ -78,8 +78,10 @@ public sealed class SourceAnalysisStage : IAnalyzerStage
             }
         }
 
+        var duplicateTypeCount = AddDuplicateTypeDiagnostics(context);
         AddResolvedRelations(context, pendingRelations);
         AddSourceDiagnostics(context, parsed);
+        warnings += duplicateTypeCount;
 
         var status = warnings == 0
             ? AnalysisStageStatus.Completed
@@ -338,6 +340,9 @@ public sealed class SourceAnalysisStage : IAnalyzerStage
             .Where(group => group.Count() == 1)
             .ToDictionary(group => group.Key, group => group.First().FullName, StringComparer.Ordinal);
         var byFullName = context.SourceTypes
+            .GroupBy(type => type.FullName, StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .Select(group => group.First())
             .ToDictionary(type => type.FullName, type => type.FullName, StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
@@ -624,5 +629,37 @@ public sealed class SourceAnalysisStage : IAnalyzerStage
                 Message = "C# types were indexed, but no cross-type relations were inferred. The project may use reflection, generated code, or weakly-typed event wiring."
             });
         }
+    }
+
+    private static int AddDuplicateTypeDiagnostics(AnalysisContext context)
+    {
+        var duplicates = context.SourceTypes
+            .GroupBy(type => type.FullName, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToArray();
+
+        foreach (var duplicate in duplicates.Take(200))
+        {
+            context.AddDiagnostic(new DiagnosticInfo
+            {
+                Severity = "warning",
+                Category = "duplicate-source-type",
+                Message = $"Duplicate C# type name '{duplicate.Key}' was found in {duplicate.Count()} files. Relationship resolution for this type uses low-confidence short-name matching only.",
+                Path = duplicate.First().SourceFile
+            });
+        }
+
+        if (duplicates.Length > 200)
+        {
+            context.AddDiagnostic(new DiagnosticInfo
+            {
+                Severity = "warning",
+                Category = "duplicate-source-type",
+                Message = $"Additional duplicate C# type names omitted from diagnostics: {duplicates.Length - 200}."
+            });
+        }
+
+        return duplicates.Length;
     }
 }

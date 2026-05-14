@@ -121,8 +121,35 @@
     <Style Selector="CheckBox:pointerover">
       <Setter Property="Foreground" Value="#111827" />
     </Style>
+    <Style Selector="CheckBox:checked">
+      <Setter Property="Foreground" Value="#1F2933" />
+    </Style>
+    <Style Selector="CheckBox:checked:pointerover">
+      <Setter Property="Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="CheckBox:checked:pressed">
+      <Setter Property="Foreground" Value="#111827" />
+    </Style>
     <Style Selector="CheckBox:disabled">
       <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+    <Style Selector="CheckBox:checked:disabled">
+      <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+    <Style Selector="CheckBox /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextBlock.Foreground" Value="#1F2933" />
+    </Style>
+    <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextBlock.Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="CheckBox:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextBlock.Foreground" Value="#1F2933" />
+    </Style>
+    <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextBlock.Foreground" Value="#111827" />
+    </Style>
+    <Style Selector="CheckBox:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextBlock.Foreground" Value="#6B7280" />
     </Style>
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="#2563EB" />
