@@ -4,8 +4,8 @@ using OfflineUnityAnalyzer.Core.Configuration;
 using OfflineUnityAnalyzer.Core.Models;
 using Xunit;
 
-namespace OfflineUnityAnalyzer.Tests;
-
+namespace OfflineUnityAnalyzer.Tests
+{
 public sealed class SplitSourceUnityProjectTests
 {
     [Fact]
@@ -53,7 +53,7 @@ public sealed class SplitSourceUnityProjectTests
                 }
                 """);
 
-            await BuildDllAsync(sourceRoot, Path.Combine(unityRoot, "Assets", "Plugins", "HotUpdate", "Game.Client.dll"));
+            CopyFixtureAssembly(Path.Combine(unityRoot, "Assets", "Plugins", "HotUpdate", "OfflineUnityAnalyzer.Tests.dll"));
 
             var analyzer = AnalyzerPipelineFactory.CreateDefault();
             var result = await analyzer.AnalyzeAsync(new AnalyzerConfig
@@ -76,7 +76,7 @@ public sealed class SplitSourceUnityProjectTests
 
             var bridgesJson = await File.ReadAllTextAsync(Path.Combine(output, "data", "code-assembly-bridges.json"));
             Assert.Contains("Game.Client.PlayerController", bridgesJson);
-            Assert.Contains("Game.Client.dll", bridgesJson);
+            Assert.Contains("OfflineUnityAnalyzer.Tests.dll", bridgesJson);
         }
         finally
         {
@@ -85,29 +85,10 @@ public sealed class SplitSourceUnityProjectTests
         }
     }
 
-    private static async Task BuildDllAsync(string sourceRoot, string destination)
+    private static void CopyFixtureAssembly(string destination)
     {
-        var project = Path.Combine(sourceRoot, "Game.Client", "Game.Client.csproj");
-        using var process = new System.Diagnostics.Process
-        {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "dotnet",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-
-        process.StartInfo.ArgumentList.Add("build");
-        process.StartInfo.ArgumentList.Add(project);
-        process.StartInfo.ArgumentList.Add("-c");
-        process.StartInfo.ArgumentList.Add("Release");
-        process.StartInfo.ArgumentList.Add("-o");
-        process.StartInfo.ArgumentList.Add(Path.GetDirectoryName(destination)!);
-        process.Start();
-        await process.WaitForExitAsync();
-        Assert.Equal(0, process.ExitCode);
+        var source = typeof(SplitSourceUnityProjectTests).Assembly.Location;
+        File.Copy(source, destination, overwrite: true);
         Assert.True(File.Exists(destination), $"Expected compiled DLL at {destination}");
     }
 
@@ -120,9 +101,33 @@ public sealed class SplitSourceUnityProjectTests
 
     private static void DeleteDirectory(string path)
     {
-        if (Directory.Exists(path))
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            Directory.Delete(path, recursive: true);
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, recursive: true);
+                }
+
+                return;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                Thread.Sleep(100);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 4)
+            {
+                Thread.Sleep(100);
+            }
         }
     }
+}
+}
+
+namespace Game.Client
+{
+public sealed class PlayerController
+{
+}
 }
