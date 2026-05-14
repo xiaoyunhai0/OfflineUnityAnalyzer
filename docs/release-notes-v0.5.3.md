@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.5.3
-
 This release fixes the first real usability problems found from running the GUI on a larger Unity project.
 
 ## Fixed

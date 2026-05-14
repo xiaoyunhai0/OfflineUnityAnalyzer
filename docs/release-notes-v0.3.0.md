@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.3.0
-
 This release deepens Unity text YAML analysis.
 
 ## Added

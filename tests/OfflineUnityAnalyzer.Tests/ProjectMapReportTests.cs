@@ -81,9 +81,11 @@ public sealed class ProjectMapReportTests
             Assert.True(rootElement.GetProperty("resolvedSourceRelationCount").GetInt32() >= 1);
 
             var html = await File.ReadAllTextAsync(Path.Combine(output, "report", "report.html"));
-            Assert.Contains("Project Map", html);
-            Assert.Contains("Code Relations", html);
-            Assert.Contains("Unity Bindings", html);
+            Assert.Contains("Unity 项目理解报告", html);
+            Assert.Contains("代码关系", html);
+            Assert.Contains("Unity 绑定路径", html);
+            Assert.Contains("模块关系概览", html);
+            Assert.DoesNotContain("Relationship Graph", html);
 
             var relationsJson = await File.ReadAllTextAsync(Path.Combine(output, "data", "source-relations.json"));
             Assert.Contains("serialized-field", relationsJson);

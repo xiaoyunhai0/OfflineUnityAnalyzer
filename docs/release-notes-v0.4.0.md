@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.4.0
-
 This release improves hot update and resource address understanding.
 
 ## Added

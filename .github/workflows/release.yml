@@ -73,10 +73,33 @@ jobs:
           name: OfflineUnityAnalyzer-win-x64
           path: publish/OfflineUnityAnalyzer-win-x64.zip
 
+      - name: Resolve release metadata
+        id: release_meta
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}"
+          } else {
+            $version = "${{ inputs.version }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Release version is empty."
+          }
+
+          $notes = "docs/release-notes-$version.md"
+          if (!(Test-Path $notes)) {
+            throw "Missing release notes file: $notes"
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "notes=$notes" >> $env:GITHUB_OUTPUT
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
-          name: OfflineUnityAnalyzer ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
-          body_path: docs/release-notes-v0.5.4.md
+          tag_name: ${{ steps.release_meta.outputs.version }}
+          name: OfflineUnityAnalyzer ${{ steps.release_meta.outputs.version }}
+          body_path: ${{ steps.release_meta.outputs.notes }}
+          fail_on_unmatched_files: true
           files: publish/OfflineUnityAnalyzer-win-x64.zip

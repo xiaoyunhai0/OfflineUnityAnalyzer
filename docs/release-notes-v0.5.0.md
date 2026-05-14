@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.5.0
-
 This release turns the desktop app into a practical GUI analysis entry point.
 
 ## Added

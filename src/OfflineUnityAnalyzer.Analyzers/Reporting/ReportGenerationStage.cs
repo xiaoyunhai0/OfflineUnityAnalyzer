@@ -104,9 +104,11 @@ public sealed class ReportGenerationStage : IAnalyzerStage
 
     private static object BuildReportData(AnalysisContext context, ReportSummary summary)
     {
+        var projectBrief = BuildProjectBrief(context, summary);
         var moduleCards = BuildModuleCards(context).Take(80).ToArray();
+        var moduleRelations = BuildModuleRelations(context).Take(120).ToArray();
+        var typeRelationCards = BuildTypeRelationCards(context).Take(80).ToArray();
         var topTypes = BuildTopTypes(context).Take(120).ToArray();
-        var graph = BuildGraph(context, topTypes).ToArray();
         var unityBindings = BuildUnityBindings(context).Take(160).ToArray();
         var unresolvedRefs = context.UnityScriptReferences
             .Where(reference => reference.ResolvedScriptPath is null)
@@ -119,11 +121,13 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         return new
         {
             summary,
+            projectBrief,
             projectModel,
             codeAssemblyBridges,
             modules = moduleCards,
+            moduleRelations,
+            typeRelationCards,
             topTypes,
-            graph,
             unityBindings,
             unresolvedRefs,
             assetChains,
@@ -144,6 +148,81 @@ public sealed class ReportGenerationStage : IAnalyzerStage
                 "data/yooasset.json",
                 "data/diagnostics.json"
             }
+        };
+    }
+
+    private static object BuildProjectBrief(AnalysisContext context, ReportSummary summary)
+    {
+        var sourceRoots = context.SourceTypes
+            .Select(type => GuessRoot(type.SourceFile))
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(root => root, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToArray();
+        var unityRoot = context.Config.UnityProject is null
+            ? "未提供 Unity 项目目录"
+            : ShortPath(context.Config.UnityProject);
+        var codeRootText = context.Config.CodeRoots.Count > 0
+            ? string.Join("、", context.Config.CodeRoots.Select(ShortPath).Take(4))
+            : sourceRoots.Length == 0
+                ? "未识别到独立源码目录"
+                : string.Join("、", sourceRoots.Select(ShortPath));
+        var dllRootText = context.Config.DllRoots.Count > 0
+            ? string.Join("、", context.Config.DllRoots.Select(ShortPath).Take(4))
+            : "自动从 Unity 项目内扫描";
+        var sourceUnityMode = context.CodeAssemblyBridges.Count > 0
+            ? "已识别“外部源码 + Unity 编译 DLL”分离结构"
+            : context.Config.CodeRoots.Count > 0
+                ? "已提供独立源码目录，暂未找到源码/DLL 对应"
+                : "以 Unity 项目内源码为主";
+
+        var suggestions = new List<string>();
+        if (context.SourceTypeRelations.Count == 0 && context.SourceTypes.Count > 0)
+        {
+            suggestions.Add("源码类型已解析，但关系边很少，建议确认是否开启 C# 关系分析。");
+        }
+
+        if (summary.UnresolvedUnityScriptReferenceCount > 0)
+        {
+            suggestions.Add($"有 {summary.UnresolvedUnityScriptReferenceCount} 个 Unity 脚本引用没有解析到脚本文件，可能存在 GUID 丢失或源码/DLL 分离。");
+        }
+
+        if (context.CodeAssemblyBridges.Count == 0 && context.Assemblies.Count > 0 && context.SourceTypes.Count > 0)
+        {
+            suggestions.Add("发现源码和 DLL，但暂未建立对应关系，报告会优先展示已确认的源码关系和 Unity 绑定。");
+        }
+
+        if (context.Diagnostics.Any(diagnostic => diagnostic.Severity.Equals("error", StringComparison.OrdinalIgnoreCase)))
+        {
+            suggestions.Add("存在错误级诊断，建议先查看“风险与诊断”里的解析失败原因。");
+        }
+
+        if (suggestions.Count == 0)
+        {
+            suggestions.Add("扫描结果完整度正常，可以从模块关系和重点类型关系开始阅读。");
+        }
+
+        return new
+        {
+            generatedAt = summary.GeneratedAtUtc,
+            unityProject = unityRoot,
+            codeRoots = codeRootText,
+            dllRoots = dllRootText,
+            sourceUnityMode,
+            relationCoverage = summary.SourceRelationCount == 0
+                ? "暂无源码关系"
+                : $"{summary.ResolvedSourceRelationCount}/{summary.SourceRelationCount} 条源码关系已解析到具体类型",
+            unityCoverage = summary.UnityScriptReferenceCount == 0
+                ? "未发现 Unity 脚本引用"
+                : $"{summary.UnityScriptReferenceCount - summary.UnresolvedUnityScriptReferenceCount}/{summary.UnityScriptReferenceCount} 个 Unity 脚本引用可回溯",
+            hotUpdate = context.HybridClr.Detected
+                ? $"检测到 HybridCLR，热更 DLL 对应 {summary.HotUpdateBridgeCount} 条"
+                : "未检测到 HybridCLR 证据",
+            assetSystem = context.YooAsset.Detected
+                ? $"检测到 YooAsset，清单资源 {summary.YooAssetManifestAssetCount} 个，代码引用 {summary.YooAssetCodeReferenceCount} 条"
+                : "未检测到 YooAsset 证据",
+            suggestions = suggestions.Take(5).ToArray()
         };
     }
 
@@ -253,31 +332,160 @@ public sealed class ReportGenerationStage : IAnalyzerStage
             .ThenBy(type => type.FullName, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static IEnumerable<object> BuildGraph(AnalysisContext context, IReadOnlyList<object> topTypes)
+    private static IEnumerable<object> BuildModuleRelations(AnalysisContext context)
     {
-        var selected = context.SourceTypes
-            .OrderByDescending(type => RelationScore(context, type.FullName)
-                + (type.IsMonoBehaviour ? 5 : 0)
-                + (type.IsScriptableObject ? 4 : 0))
-            .Take(70)
-            .Select(type => type.FullName)
-            .ToHashSet(StringComparer.Ordinal);
+        var moduleByType = context.SourceTypes
+            .GroupBy(type => type.FullName, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToDictionary(type => type.FullName, type => InferModuleName(type, context.Modules), StringComparer.Ordinal);
 
         return context.SourceTypeRelations
-            .Where(relation => selected.Contains(relation.SourceType)
-                && selected.Contains(relation.TargetType)
+            .Where(relation => moduleByType.ContainsKey(relation.SourceType)
+                && moduleByType.ContainsKey(relation.TargetType)
                 && relation.IsResolved)
-            .GroupBy(relation => new { relation.SourceType, relation.TargetType, relation.RelationKind })
+            .Select(relation => new
+            {
+                Relation = relation,
+                SourceModule = moduleByType[relation.SourceType],
+                TargetModule = moduleByType[relation.TargetType]
+            })
+            .Where(item => !item.SourceModule.Equals(item.TargetModule, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(item => new { item.SourceModule, item.TargetModule })
             .OrderByDescending(group => group.Count())
-            .Take(220)
             .Select(group => new
             {
-                source = ShortName(group.Key.SourceType),
-                sourceFullName = group.Key.SourceType,
-                target = ShortName(group.Key.TargetType),
-                targetFullName = group.Key.TargetType,
-                kind = group.Key.RelationKind,
-                count = group.Count()
+                sourceModule = group.Key.SourceModule,
+                targetModule = group.Key.TargetModule,
+                relationCount = group.Count(),
+                relationKinds = group
+                    .GroupBy(item => item.Relation.RelationKind)
+                    .OrderByDescending(kind => kind.Count())
+                    .ThenBy(kind => kind.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(kind => new { kind = kind.Key, count = kind.Count(), label = TranslateRelationKind(kind.Key) })
+                    .ToArray(),
+                sampleFlows = group
+                    .GroupBy(item => new { item.Relation.SourceType, item.Relation.TargetType })
+                    .OrderByDescending(flow => flow.Count())
+                    .ThenBy(flow => flow.Key.SourceType, StringComparer.OrdinalIgnoreCase)
+                    .Take(6)
+                    .Select(flow => new
+                    {
+                        source = ShortName(flow.Key.SourceType),
+                        sourceFullName = flow.Key.SourceType,
+                        target = ShortName(flow.Key.TargetType),
+                        targetFullName = flow.Key.TargetType,
+                        count = flow.Count(),
+                        relationKinds = flow
+                            .Select(item => TranslateRelationKind(item.Relation.RelationKind))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                            .ToArray()
+                    })
+                    .ToArray()
+            });
+    }
+
+    private static IEnumerable<object> BuildTypeRelationCards(AnalysisContext context)
+    {
+        var inbound = context.SourceTypeRelations
+            .Where(relation => relation.IsResolved)
+            .GroupBy(relation => relation.TargetType)
+            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        var outbound = context.SourceTypeRelations
+            .GroupBy(relation => relation.SourceType)
+            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        var unityRefs = context.UnityComponents
+            .Where(component => !string.IsNullOrWhiteSpace(component.ResolvedType))
+            .GroupBy(component => component.ResolvedType!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var type in context.SourceTypes
+            .OrderByDescending(type => RelationScore(context, type.FullName)
+                + (type.IsMonoBehaviour ? 10 : 0)
+                + (type.IsScriptableObject ? 8 : 0)
+                + (type.IsEditorType ? -2 : 0)
+                + unityRefs.GetValueOrDefault(type.Name) * 4)
+            .ThenBy(type => type.FullName, StringComparer.OrdinalIgnoreCase))
+        {
+            inbound.TryGetValue(type.FullName, out var inboundRelations);
+            outbound.TryGetValue(type.FullName, out var outboundRelations);
+            inboundRelations ??= Array.Empty<SourceTypeRelationInfo>();
+            outboundRelations ??= Array.Empty<SourceTypeRelationInfo>();
+
+            var tags = new List<string>();
+            if (type.IsMonoBehaviour)
+            {
+                tags.Add("MonoBehaviour");
+            }
+
+            if (type.IsScriptableObject)
+            {
+                tags.Add("ScriptableObject");
+            }
+
+            if (type.IsEditorType)
+            {
+                tags.Add("Editor");
+            }
+
+            if (unityRefs.GetValueOrDefault(type.Name) > 0)
+            {
+                tags.Add("Unity 绑定");
+            }
+
+            if (tags.Count == 0)
+            {
+                tags.Add(type.Kind);
+            }
+
+            yield return new
+            {
+                type.FullName,
+                type.Name,
+                type.Namespace,
+                module = InferModuleName(type, context.Modules),
+                type.AssemblyName,
+                tags,
+                inboundCount = inboundRelations.Length,
+                outboundCount = outboundRelations.Length,
+                unityBindingCount = unityRefs.GetValueOrDefault(type.Name),
+                baseTypes = type.BaseTypes.Select(ShortName).Take(5).ToArray(),
+                sourceFile = ShortPath(type.SourceFile),
+                outgoingGroups = BuildRelationGroups(outboundRelations, isOutgoing: true).Take(6).ToArray(),
+                incomingGroups = BuildRelationGroups(inboundRelations, isOutgoing: false).Take(4).ToArray()
+            };
+        }
+    }
+
+    private static IEnumerable<object> BuildRelationGroups(IEnumerable<SourceTypeRelationInfo> relations, bool isOutgoing)
+    {
+        return relations
+            .GroupBy(relation => relation.RelationKind)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                kind = group.Key,
+                label = TranslateRelationKind(group.Key),
+                count = group.Count(),
+                samples = group
+                    .GroupBy(relation => isOutgoing ? relation.TargetType : relation.SourceType)
+                    .OrderByDescending(sample => sample.Count())
+                    .ThenBy(sample => sample.Key, StringComparer.OrdinalIgnoreCase)
+                    .Take(6)
+                    .Select(sample => new
+                    {
+                        type = ShortName(sample.Key),
+                        fullName = sample.Key,
+                        count = sample.Count(),
+                        members = sample
+                            .Select(relation => relation.SourceMember)
+                            .Where(member => !string.IsNullOrWhiteSpace(member))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .Take(3)
+                            .ToArray()
+                    })
+                    .ToArray()
             });
     }
 
@@ -429,6 +637,51 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         return null;
     }
 
+    private static string? GuessRoot(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return null;
+        }
+
+        var parts = directory.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var assetsIndex = Array.FindIndex(parts, part => part.Equals("Assets", StringComparison.OrdinalIgnoreCase));
+        if (assetsIndex >= 0)
+        {
+            return string.Join('/', parts.Take(assetsIndex + 1));
+        }
+
+        var packagesIndex = Array.FindIndex(parts, part => part.Equals("Packages", StringComparison.OrdinalIgnoreCase));
+        if (packagesIndex >= 0 && packagesIndex + 1 < parts.Length)
+        {
+            return string.Join('/', parts.Take(packagesIndex + 2));
+        }
+
+        return string.Join('/', parts.Take(Math.Min(parts.Length, 4)));
+    }
+
+    private static string TranslateRelationKind(string kind)
+    {
+        return kind switch
+        {
+            "inherits" => "继承",
+            "serialized-field" => "序列化字段",
+            "field" => "字段引用",
+            "property" => "属性引用",
+            "returns" => "返回值",
+            "parameter" => "参数",
+            "creates" => "创建",
+            "calls" => "疑似调用",
+            _ => kind
+        };
+    }
+
     private static bool ContainsPath(string root, string path)
     {
         if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
@@ -476,70 +729,84 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         var reportJson = JsonSerializer.Serialize(reportData, JsonOptions);
         return $$"""
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OfflineUnityAnalyzer Project Map</title>
+  <title>Unity 项目理解报告</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
   <header class="app-header">
     <div>
-      <p class="eyebrow">Offline Unity project intelligence</p>
-      <h1>Project Map</h1>
-      <p class="subtitle">A relationship-first report for split source repositories, compiled Unity DLLs, scenes, prefabs, HybridCLR, YooAsset, and configuration evidence.</p>
+      <p class="eyebrow">OfflineUnityAnalyzer</p>
+      <h1>Unity 项目理解报告</h1>
+      <p class="subtitle">默认从结构、模块、类型关系、Unity 绑定、源码/DLL 对应和诊断风险阅读项目，而不是只把文件清单堆出来。</p>
     </div>
     <div class="header-actions">
-      <button data-scroll="overview">Overview</button>
-      <button data-scroll="modules">Modules</button>
-      <button data-scroll="relations">Relations</button>
-      <button data-scroll="compiled">Compiled</button>
+      <button data-scroll="overview">总览</button>
+      <button data-scroll="modules">模块</button>
+      <button data-scroll="relations">关系</button>
+      <button data-scroll="compiled">源码/DLL</button>
       <button data-scroll="unity">Unity</button>
-      <button data-scroll="diagnostics">Diagnostics</button>
+      <button data-scroll="diagnostics">诊断</button>
     </div>
   </header>
 
   <main>
     <section id="overview" class="section">
       <div class="section-title">
-        <h2>Overview</h2>
-        <p>Counts are generated from the complete offline scan. Detailed full data is available in <code>../data/</code>.</p>
+        <h2>总览</h2>
+        <p>先看项目形态、扫描覆盖和需要注意的风险，再往下阅读关系。完整原始数据仍保存在 <code>../data/</code>。</p>
       </div>
       <div id="metrics" class="metrics"></div>
-      <div class="split">
+      <div class="split overview-split">
         <article class="panel">
-          <h3>Analysis Shape</h3>
-          <div id="shape"></div>
+          <h3>项目形态判断</h3>
+          <div id="project-brief"></div>
         </article>
         <article class="panel">
-          <h3>Hot Update And Assets</h3>
+          <h3>热更新与资源系统</h3>
           <div id="hotupdate"></div>
         </article>
       </div>
+      <article class="panel detail-panel">
+        <h3>扫描范围分布</h3>
+        <div id="shape"></div>
+      </article>
     </section>
 
     <section id="modules" class="section">
       <div class="section-title">
-        <h2>Modules</h2>
-        <p>Grouped by asmdef, namespace, package, and Unity asset paths so you can see what each area owns.</p>
+        <h2>模块理解</h2>
+        <p>模块按 asmdef、命名空间、包和 Unity 资源路径自动推断。先看模块职责，再看模块之间的依赖方向。</p>
       </div>
-      <div id="module-grid" class="module-grid"></div>
+      <div class="split wide-left">
+        <article class="panel">
+          <h3>模块关系概览</h3>
+          <div id="module-relations"></div>
+        </article>
+        <article class="panel">
+          <h3>模块职责卡片</h3>
+          <div id="module-grid" class="module-grid"></div>
+        </article>
+      </div>
     </section>
 
     <section id="relations" class="section">
       <div class="section-title">
-        <h2>Code Relations</h2>
-        <p>Inheritance, serialized fields, regular fields, properties, constructors, and likely calls between indexed C# types.</p>
+        <h2>代码关系</h2>
+        <p>默认展示重点类型的上下游关系，按继承、序列化字段、字段、属性、创建和疑似调用分组，避免大图一团线。</p>
       </div>
-      <div class="relation-layout">
+      <div class="split wide-left">
         <article class="panel">
-          <h3>Relationship Graph</h3>
-          <div id="graph" class="graph"></div>
+          <h3>重点类型关系</h3>
+          <div class="toolbar"><input id="relation-filter" type="search" placeholder="筛选类型、模块、程序集、文件"></div>
+          <div id="type-relation-cards" class="type-card-grid"></div>
         </article>
         <article class="panel">
-          <h3>Important Types</h3>
-          <div class="toolbar"><input id="type-filter" type="search" placeholder="Filter types, assemblies, namespaces"></div>
+          <h3>重点类型索引</h3>
+          <div class="toolbar"><input id="type-filter" type="search" placeholder="筛选类型、程序集、命名空间"></div>
           <div id="top-types"></div>
         </article>
       </div>
@@ -547,27 +814,27 @@ public sealed class ReportGenerationStage : IAnalyzerStage
 
     <section id="compiled" class="section">
       <div class="section-title">
-        <h2>Source To Compiled DLLs</h2>
-        <p>Shows how external C# source roots line up with compiled assemblies found inside the Unity project.</p>
+        <h2>源码/DLL 对应</h2>
+        <p>用于你这种“外部 C# 源码 + Unity 项目内编译后 DLL”的结构，展示源码类型如何对应到 Unity 项目里的程序集。</p>
       </div>
       <div class="split">
-        <article class="panel"><h3>Source/DLL Bridges</h3><div id="code-assembly-bridges"></div></article>
-        <article class="panel"><h3>DLL Type Index</h3><div id="dll-types"></div></article>
+        <article class="panel"><h3>源码到 DLL 的桥接</h3><div id="code-assembly-bridges"></div></article>
+        <article class="panel"><h3>DLL 类型索引</h3><div id="dll-types"></div></article>
       </div>
     </section>
 
     <section id="unity" class="section">
       <div class="section-title">
-        <h2>Unity Bindings</h2>
-        <p>Scene and prefab components resolved back to scripts, plus asset-to-asset reference chains.</p>
+        <h2>Unity 绑定路径</h2>
+        <p>把场景、Prefab、GameObject、组件和脚本关联起来，帮助你从 Unity 资源入口追到代码。</p>
       </div>
       <div class="split">
         <article class="panel">
-          <h3>GameObject To Script</h3>
+          <h3>GameObject 到脚本</h3>
           <div id="unity-bindings"></div>
         </article>
         <article class="panel">
-          <h3>Asset Reference Chains</h3>
+          <h3>资源引用链</h3>
           <div id="asset-chains"></div>
         </article>
       </div>
@@ -575,23 +842,23 @@ public sealed class ReportGenerationStage : IAnalyzerStage
 
     <section id="project-model" class="section">
       <div class="section-title">
-        <h2>Project Model</h2>
-        <p>Assemblies, asmdefs, packages, and file categories found during the scan.</p>
+        <h2>项目模型明细</h2>
+        <p>这里保留 asmdef、包、文件类别等明细，作为深入核对时使用的索引。</p>
       </div>
       <div class="split">
-        <article class="panel"><h3>Asmdefs</h3><div id="asmdefs"></div></article>
-        <article class="panel"><h3>Packages And Files</h3><div id="packages"></div></article>
+        <article class="panel"><h3>Asmdef</h3><div id="asmdefs"></div></article>
+        <article class="panel"><h3>包与文件类别</h3><div id="packages"></div></article>
       </div>
     </section>
 
     <section id="diagnostics" class="section">
       <div class="section-title">
-        <h2>Diagnostics</h2>
-        <p>Warnings and architecture hints collected while parsing. These explain missing or low-confidence edges.</p>
+        <h2>风险与诊断</h2>
+        <p>这里解释缺失关系、低置信度匹配、解析失败和重复类型等问题。报告看起来不完整时，先看这一块。</p>
       </div>
       <div class="split">
-        <article class="panel"><h3>Warnings And Hints</h3><div id="diagnostics-table"></div></article>
-        <article class="panel"><h3>Raw Data</h3><div id="data-files"></div></article>
+        <article class="panel"><h3>诊断信息</h3><div id="diagnostics-table"></div></article>
+        <article class="panel"><h3>原始数据</h3><div id="data-files"></div></article>
       </div>
     </section>
   </main>
@@ -610,19 +877,20 @@ public sealed class ReportGenerationStage : IAnalyzerStage
         return """
 :root {
   color-scheme: light;
-  --bg: #f5f7fb;
+  --bg: #eef3f8;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --ink: #172033;
-  --muted: #5f6f89;
-  --line: #d8e0ec;
-  --line-strong: #b8c4d6;
-  --blue: #2458d3;
-  --teal: #0f766e;
-  --green: #17803a;
-  --amber: #a15c05;
-  --red: #b42318;
-  --purple: #6d3fc7;
+  --surface-2: #f7fafc;
+  --surface-3: #edf7f5;
+  --ink: #182231;
+  --muted: #667589;
+  --line: #d6dee9;
+  --line-strong: #aebdd0;
+  --blue: #1f5fbf;
+  --teal: #087b73;
+  --green: #177245;
+  --amber: #9a5a08;
+  --red: #b3261e;
+  --violet: #7047b8;
   font-family: "Segoe UI", "Microsoft YaHei UI", Arial, sans-serif;
 }
 
@@ -644,12 +912,12 @@ body {
   padding: 28px 36px 24px;
   color: #ffffff;
   background: #142033;
-  border-bottom: 4px solid #2dd4bf;
+  border-bottom: 4px solid #23b7a8;
 }
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #a7f3d0;
+  color: #9ee8dc;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
@@ -680,7 +948,7 @@ h3 {
 }
 
 .subtitle {
-  max-width: 800px;
+  max-width: 860px;
   margin-bottom: 0;
   color: #dbeafe;
   line-height: 1.5;
@@ -708,7 +976,7 @@ button:hover {
 }
 
 main {
-  max-width: 1440px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 26px;
 }
@@ -718,19 +986,17 @@ main {
 }
 
 .section-title {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   margin-bottom: 14px;
 }
 
 .section-title p {
+  max-width: 980px;
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.5;
 }
 
-.metrics,
-.module-grid {
+.metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
@@ -738,7 +1004,9 @@ main {
 
 .metric,
 .panel,
-.module-card {
+.module-card,
+.relation-card,
+.type-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -770,37 +1038,94 @@ main {
   line-height: 1.35;
 }
 
-.split,
-.relation-layout {
-  display: grid;
-  gap: 14px;
-}
-
 .split {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
   margin-top: 14px;
 }
 
-.relation-layout {
-  grid-template-columns: minmax(360px, 0.9fr) minmax(480px, 1.1fr);
+.wide-left {
+  grid-template-columns: minmax(520px, 1.08fr) minmax(430px, 0.92fr);
+}
+
+.overview-split {
+  grid-template-columns: minmax(520px, 1.15fr) minmax(360px, 0.85fr);
 }
 
 .panel,
-.module-card {
+.module-card,
+.relation-card,
+.type-card {
   padding: 16px;
   overflow: hidden;
 }
 
-.module-card h3 {
+.detail-panel {
+  margin-top: 14px;
+}
+
+.module-grid,
+.type-card-grid,
+.relation-list,
+.brief-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.module-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.type-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.brief-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.brief-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-2);
+}
+
+.brief-item span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.brief-item strong {
+  overflow-wrap: anywhere;
+}
+
+.module-card h3,
+.relation-card h3,
+.type-card h3 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 10px;
 }
 
+.type-name,
+.module-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.type-card header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .stat-row,
-.legend,
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -834,7 +1159,7 @@ main {
   background: #fef3c7;
 }
 
-.chip.purple {
+.chip.violet {
   color: #4c1d95;
   background: #ede9fe;
 }
@@ -842,6 +1167,54 @@ main {
 .chip.gray {
   color: #475569;
   background: #e2e8f0;
+}
+
+.chip.red {
+  color: #7f1d1d;
+  background: #fee2e2;
+}
+
+.flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #e5edf6;
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--surface-2);
+}
+
+.flow strong,
+.flow span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  color: var(--teal);
+  font-weight: 800;
+}
+
+.relation-groups {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.relation-group {
+  border-left: 3px solid var(--teal);
+  padding: 8px 0 8px 10px;
+  background: linear-gradient(90deg, rgba(8, 123, 115, 0.07), transparent);
+}
+
+.relation-group-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 table {
@@ -875,7 +1248,7 @@ td {
 
 input {
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   padding: 8px 10px;
@@ -884,52 +1257,8 @@ input {
   font: inherit;
 }
 
-.graph {
-  min-height: 520px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfdff;
-  overflow: auto;
-}
-
-.graph svg {
-  display: block;
-  min-width: 620px;
-}
-
-.node text {
-  fill: #172033;
-  font-size: 11px;
-}
-
-.node circle {
-  fill: #ffffff;
-  stroke: #2458d3;
-  stroke-width: 2;
-}
-
-.node.is-unity circle {
-  stroke: #0f766e;
-}
-
-.edge {
-  stroke: #8091aa;
-  stroke-width: 1.2;
-  opacity: 0.72;
-}
-
-.edge.inherits {
-  stroke: #6d3fc7;
-}
-
-.edge.serialized-field {
-  stroke: #0f766e;
-  stroke-width: 1.8;
-}
-
-.edge.calls {
-  stroke: #a15c05;
-  stroke-dasharray: 4 3;
+input::placeholder {
+  color: #6b778a;
 }
 
 .mini-list {
@@ -965,7 +1294,8 @@ code {
 @media (max-width: 980px) {
   .app-header,
   .split,
-  .relation-layout {
+  .wide-left,
+  .overview-split {
     grid-template-columns: 1fr;
   }
 
@@ -975,6 +1305,14 @@ code {
 
   main {
     padding: 18px;
+  }
+
+  .flow {
+    grid-template-columns: 1fr;
+  }
+
+  .arrow {
+    display: none;
   }
 }
 """;
@@ -988,10 +1326,12 @@ code {
   const summary = data.summary || {};
 
   renderMetrics();
+  renderProjectBrief();
   renderShape();
   renderHotUpdate();
   renderModules();
-  renderGraph();
+  renderModuleRelations();
+  renderTypeRelationCards();
   renderTopTypes();
   renderCompiled();
   renderUnity();
@@ -1001,27 +1341,47 @@ code {
 
   function renderMetrics() {
     const metrics = [
-      ["Files", summary.fileCount, "All indexed files after excludes"],
-      ["C# Types", summary.sourceTypeCount, `${summary.monoBehaviourCount || 0} MonoBehaviour, ${summary.scriptableObjectCount || 0} ScriptableObject`],
-      ["Relations", summary.sourceRelationCount, `${summary.resolvedSourceRelationCount || 0} resolved between indexed types`],
-      ["Source/DLL Bridges", summary.codeAssemblyBridgeCount, `${summary.hotUpdateBridgeCount || 0} hot-update matches`],
-      ["Serialized Fields", summary.serializedFieldCount, "Public fields and [SerializeField] members"],
-      ["Unity Bindings", summary.unityComponentCount, `${summary.unityGameObjectCount || 0} GameObjects indexed`],
-      ["Asset Refs", summary.unityAssetReferenceCount, "Scene/prefab/material/config references"],
-      ["Modules", summary.moduleCount, "Inferred ownership groups"],
-      ["Diagnostics", summary.diagnosticCount, `${summary.warningDiagnosticCount || 0} warnings`]
+      ["文件", summary.fileCount, "排除规则之后纳入索引的文件"],
+      ["C# 类型", summary.sourceTypeCount, `${summary.monoBehaviourCount || 0} 个 MonoBehaviour，${summary.scriptableObjectCount || 0} 个 ScriptableObject`],
+      ["代码关系", summary.sourceRelationCount, `${summary.resolvedSourceRelationCount || 0} 条已解析到项目内类型`],
+      ["源码/DLL 桥接", summary.codeAssemblyBridgeCount, `${summary.hotUpdateBridgeCount || 0} 条热更程序集匹配`],
+      ["序列化字段", summary.serializedFieldCount, "public 字段与 [SerializeField] 字段"],
+      ["Unity 绑定", summary.unityComponentCount, `${summary.unityGameObjectCount || 0} 个 GameObject 已索引`],
+      ["资源引用", summary.unityAssetReferenceCount, "场景、Prefab、材质、配置中的资源引用"],
+      ["模块", summary.moduleCount, "自动推断的职责分组"],
+      ["诊断", summary.diagnosticCount, `${summary.warningDiagnosticCount || 0} 个警告，${summary.errorDiagnosticCount || 0} 个错误`]
     ];
     document.getElementById("metrics").innerHTML = metrics.map(([label, value, note]) => `
       <article class="metric"><strong>${escapeHtml(value ?? 0)}</strong><span>${escapeHtml(label)}</span><small>${escapeHtml(note)}</small></article>
     `).join("");
   }
 
+  function renderProjectBrief() {
+    const brief = data.projectBrief || {};
+    const rows = [
+      ["项目结构", brief.sourceUnityMode],
+      ["Unity 项目", brief.unityProject],
+      ["源码目录", brief.codeRoots],
+      ["DLL 来源", brief.dllRoots],
+      ["代码关系覆盖", brief.relationCoverage],
+      ["Unity 引用覆盖", brief.unityCoverage]
+    ];
+    const suggestions = brief.suggestions || [];
+    document.getElementById("project-brief").innerHTML = `
+      <div class="brief-grid">
+        ${rows.map(([label, value]) => `<div class="brief-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "无")}</strong></div>`).join("")}
+      </div>
+      <ul class="mini-list">
+        ${suggestions.map(item => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>`;
+  }
+
   function renderShape() {
     const rows = Object.entries(summary.byFileKind || {}).sort((a, b) => b[1] - a[1]).slice(0, 16)
-      .map(([kind, count]) => ({ kind, count }));
+      .map(([kind, count]) => ({ kind: translateFileKind(kind), count }));
     renderTable("shape", rows, [
-      ["File Kind", "kind"],
-      ["Count", "count"]
+      ["文件类别", "kind"],
+      ["数量", "count"]
     ]);
   }
 
@@ -1029,9 +1389,9 @@ code {
     const hybrid = data.hybridClr || {};
     const yoo = data.yooAsset || {};
     const lines = [
-      `<p><span class="chip ${hybrid.detected ? "green" : "gray"}">HybridCLR ${hybrid.detected ? "detected" : "not found"}</span></p>`,
-      `<p><span class="chip ${yoo.detected ? "green" : "gray"}">YooAsset ${yoo.detected ? "detected" : "not found"}</span></p>`,
-      `<div class="stat-row"><span class="chip">Hot DLLs ${(hybrid.hotUpdateAssemblies || []).length}</span><span class="chip">AOT ${(hybrid.aotMetadataAssemblies || []).length}</span><span class="chip">Yoo manifests ${(yoo.manifestFiles || []).length}</span><span class="chip">Yoo code refs ${summary.yooAssetCodeReferenceCount || 0}</span></div>`
+      `<p><span class="chip ${hybrid.detected ? "green" : "gray"}">HybridCLR ${hybrid.detected ? "已检测到" : "未发现"}</span></p>`,
+      `<p><span class="chip ${yoo.detected ? "green" : "gray"}">YooAsset ${yoo.detected ? "已检测到" : "未发现"}</span></p>`,
+      `<div class="stat-row"><span class="chip">热更 DLL ${(hybrid.hotUpdateAssemblies || []).length}</span><span class="chip">AOT ${(hybrid.aotMetadataAssemblies || []).length}</span><span class="chip">Yoo 清单 ${(yoo.manifestFiles || []).length}</span><span class="chip">Yoo 代码引用 ${summary.yooAssetCodeReferenceCount || 0}</span></div>`
     ];
     if ((hybrid.evidence || []).length) {
       lines.push(`<ul class="mini-list">${hybrid.evidence.slice(0, 5).map(x => `<li>${escapeHtml(shortPath(x))}</li>`).join("")}</ul>`);
@@ -1043,83 +1403,91 @@ code {
     const modules = data.modules || [];
     const root = document.getElementById("module-grid");
     if (!modules.length) {
-      root.innerHTML = `<p class="empty">No modules inferred. Check source/project model stages.</p>`;
+      root.innerHTML = `<p class="empty">没有推断出模块。可以查看项目模型和诊断信息确认源码是否被扫描。</p>`;
       return;
     }
     root.innerHTML = modules.map(module => `
       <article class="module-card">
-        <h3><span>${escapeHtml(module.name)}</span><span class="chip gray">${module.typeCount || 0} types</span></h3>
+        <h3><span class="module-name">${escapeHtml(module.name)}</span><span class="chip gray">${module.typeCount || 0} 类型</span></h3>
         <div class="stat-row">
           <span class="chip green">${module.monoBehaviourCount || 0} MonoBehaviour</span>
-          <span class="chip purple">${module.scriptableObjectCount || 0} ScriptableObject</span>
-          <span class="chip">${module.assetCount || 0} assets</span>
+          <span class="chip violet">${module.scriptableObjectCount || 0} ScriptableObject</span>
+          <span class="chip">${module.assetCount || 0} 资源</span>
         </div>
-        <strong class="muted">Important types</strong>
+        <strong class="muted">代表类型</strong>
         <ul class="mini-list">
-          ${(module.topTypes || []).slice(0, 6).map(type => `<li>${escapeHtml(type.name)} <span class="muted">${escapeHtml(type.kind)} · ${type.relationCount || 0} refs</span></li>`).join("") || `<li class="muted">No indexed types.</li>`}
+          ${(module.topTypes || []).slice(0, 6).map(type => `<li>${escapeHtml(type.name)} <span class="muted">${escapeHtml(type.kind)} · ${type.relationCount || 0} 条关系</span></li>`).join("") || `<li class="muted">没有索引到类型。</li>`}
         </ul>
-        ${(module.outbound || []).length ? `<strong class="muted">Depends on</strong><ul class="mini-list">${module.outbound.slice(0, 5).map(edge => `<li>${escapeHtml(edge.target)} <span class="muted">${edge.count} ${escapeHtml((edge.kinds || []).join(", "))}</span></li>`).join("")}</ul>` : ""}
+        ${(module.outbound || []).length ? `<strong class="muted">主要依赖</strong><ul class="mini-list">${module.outbound.slice(0, 5).map(edge => `<li>${escapeHtml(edge.target)} <span class="muted">${edge.count} 条 · ${escapeHtml((edge.kinds || []).map(translateRelationKind).join("、"))}</span></li>`).join("")}</ul>` : ""}
       </article>
     `).join("");
   }
 
-  function renderGraph() {
-    const edges = data.graph || [];
-    const root = document.getElementById("graph");
-    if (!edges.length) {
-      root.innerHTML = `<p class="empty" style="padding:16px">No resolved code relations found. Full raw type data is still in ../data/types.json.</p>`;
+  function renderModuleRelations() {
+    const relations = data.moduleRelations || [];
+    const root = document.getElementById("module-relations");
+    if (!relations.length) {
+      root.innerHTML = `<p class="empty">没有发现跨模块关系。可能项目本身模块较集中，或当前只扫描到部分源码。</p>`;
       return;
     }
+    root.innerHTML = `<div class="relation-list">${relations.slice(0, 40).map(edge => `
+      <article class="relation-card">
+        <h3><span class="module-name">${escapeHtml(edge.sourceModule)}</span><span class="chip">${edge.relationCount || 0} 条</span></h3>
+        <div class="flow"><strong>${escapeHtml(edge.sourceModule)}</strong><span class="arrow">-></span><strong>${escapeHtml(edge.targetModule)}</strong></div>
+        <div class="chips" style="margin-top:10px">${(edge.relationKinds || []).slice(0, 5).map(kind => `<span class="chip ${relationTone(kind.kind)}">${escapeHtml(kind.label || translateRelationKind(kind.kind))} ${kind.count}</span>`).join("")}</div>
+        <ul class="mini-list">
+          ${(edge.sampleFlows || []).slice(0, 5).map(flow => `<li><strong>${escapeHtml(flow.source)}</strong> -> <strong>${escapeHtml(flow.target)}</strong> <span class="muted">${flow.count} 条 · ${escapeHtml((flow.relationKinds || []).join("、"))}</span></li>`).join("")}
+        </ul>
+      </article>
+    `).join("")}</div>`;
+  }
 
-    const nodes = new Map();
-    for (const edge of edges) {
-      nodes.set(edge.sourceFullName, edge.source);
-      nodes.set(edge.targetFullName, edge.target);
-    }
-    const nodeEntries = Array.from(nodes.entries()).slice(0, 72);
-    const nodeIndex = new Map(nodeEntries.map(([full], index) => [full, index]));
-    const width = 920;
-    const height = Math.max(560, Math.ceil(nodeEntries.length / 8) * 86 + 80);
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radiusX = Math.max(280, width / 2 - 120);
-    const radiusY = Math.max(210, height / 2 - 90);
-    const positions = nodeEntries.map(([full, name], index) => {
-      const angle = (index / nodeEntries.length) * Math.PI * 2 - Math.PI / 2;
-      return {
-        full,
-        name,
-        x: centerX + Math.cos(angle) * radiusX,
-        y: centerY + Math.sin(angle) * radiusY
-      };
+  function renderTypeRelationCards() {
+    const cards = data.typeRelationCards || [];
+    const root = document.getElementById("type-relation-cards");
+    const render = items => {
+      if (!items.length) {
+        root.innerHTML = `<p class="empty">没有可展示的重点类型关系。</p>`;
+        return;
+      }
+      root.innerHTML = items.slice(0, 60).map(type => `
+        <article class="type-card">
+          <header>
+            <h3><span class="type-name">${escapeHtml(type.name)}</span><span class="chip gray">${escapeHtml(type.module || "")}</span></h3>
+            <div class="chips">${(type.tags || []).map(tag => `<span class="chip ${tagTone(tag)}">${escapeHtml(tag)}</span>`).join("")}</div>
+            <div class="stat-row">
+              <span class="chip">入 ${type.inboundCount || 0}</span>
+              <span class="chip">出 ${type.outboundCount || 0}</span>
+              <span class="chip">Unity ${type.unityBindingCount || 0}</span>
+              ${(type.baseTypes || []).length ? `<span class="chip violet">继承 ${escapeHtml(type.baseTypes.join("、"))}</span>` : ""}
+            </div>
+            <p class="muted">${escapeHtml(type.fullName)} · ${escapeHtml(type.sourceFile || "")}</p>
+          </header>
+          ${renderRelationGroups("主要使用了谁", type.outgoingGroups || [])}
+          ${renderRelationGroups("谁在使用它", type.incomingGroups || [])}
+        </article>
+      `).join("");
+    };
+    render(cards);
+    const filter = document.getElementById("relation-filter");
+    filter.addEventListener("input", () => {
+      const q = filter.value.trim().toLowerCase();
+      if (!q) {
+        render(cards);
+        return;
+      }
+      render(cards.filter(card => JSON.stringify(card).toLowerCase().includes(q)));
     });
-
-    const edgeSvg = edges
-      .filter(edge => nodeIndex.has(edge.sourceFullName) && nodeIndex.has(edge.targetFullName))
-      .slice(0, 220)
-      .map(edge => {
-        const a = positions[nodeIndex.get(edge.sourceFullName)];
-        const b = positions[nodeIndex.get(edge.targetFullName)];
-        return `<line class="edge ${cssClass(edge.kind)}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"><title>${escapeHtml(edge.source)} -> ${escapeHtml(edge.target)} (${escapeHtml(edge.kind)}, ${edge.count})</title></line>`;
-      }).join("");
-    const nodeSvg = positions.map(node => `
-      <g class="node" transform="translate(${node.x},${node.y})">
-        <circle r="18"><title>${escapeHtml(node.full)}</title></circle>
-        <text x="24" y="4">${escapeHtml(node.name)}</text>
-      </g>
-    `).join("");
-
-    root.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Code relationship graph">${edgeSvg}${nodeSvg}</svg>`;
   }
 
   function renderTopTypes() {
     const rows = data.topTypes || [];
     const columns = [
-      ["Type", row => `${row.name}${row.isMonoBehaviour ? " · MonoBehaviour" : ""}${row.isScriptableObject ? " · ScriptableObject" : ""}`],
-      ["Assembly", "assemblyName"],
-      ["Relations", row => `in ${row.inboundCount || 0} / out ${row.outboundCount || 0}`],
+      ["类型", row => `${row.name}${row.isMonoBehaviour ? " · MonoBehaviour" : ""}${row.isScriptableObject ? " · ScriptableObject" : ""}`],
+      ["程序集", "assemblyName"],
+      ["关系", row => `入 ${row.inboundCount || 0} / 出 ${row.outboundCount || 0}`],
       ["Unity", row => row.unityBindingCount || 0],
-      ["File", "sourceFile"]
+      ["文件", "sourceFile"]
     ];
     renderTable("top-types", rows, columns);
     const filter = document.getElementById("type-filter");
@@ -1133,74 +1501,88 @@ code {
 
   function renderCompiled() {
     renderTable("code-assembly-bridges", data.codeAssemblyBridges || [], [
-      ["Source Type", "sourceType"],
-      ["Source", "source"],
+      ["源码类型", "sourceType"],
+      ["源码文件", "source"],
       ["DLL", row => `${row.assembly} · ${row.assemblyKind}`],
-      ["Match", "matchKind"],
-      ["Confidence", "confidence"]
+      ["匹配方式", "matchKind"],
+      ["置信度", "confidence"]
     ]);
     const assemblies = (data.projectModel && data.projectModel.assemblies) || [];
     renderTable("dll-types", assemblies, [
-      ["Assembly", "name"],
-      ["Kind", "kind"],
-      ["Types", "typeCount"],
+      ["程序集", "name"],
+      ["类别", "kind"],
+      ["类型数", "typeCount"],
       ["MonoBehaviour", "monoBehaviourCount"],
-      ["Path", "path"]
+      ["路径", "path"]
     ]);
   }
 
   function renderUnity() {
     renderTable("unity-bindings", data.unityBindings || [], [
-      ["Asset", "asset"],
+      ["资源", "asset"],
       ["GameObject", "gameObject"],
-      ["Script", "script"],
-      ["Component", "componentType"],
-      ["Count", "count"]
+      ["脚本", "script"],
+      ["组件", "componentType"],
+      ["数量", "count"]
     ]);
     renderTable("asset-chains", data.assetChains || [], [
-      ["Source", "source"],
-      ["Owner", "ownerType"],
-      ["Field", "field"],
-      ["Target", "target"],
-      ["Count", "count"]
+      ["来源资源", "source"],
+      ["拥有者", "ownerType"],
+      ["字段", "field"],
+      ["目标资源", "target"],
+      ["数量", "count"]
     ]);
   }
 
   function renderProjectModel() {
     const model = data.projectModel || {};
     renderTable("asmdefs", model.asmdefs || [], [
-      ["Name", "name"],
-      ["Refs", "referenceCount"],
-      ["Editor", row => row.isEditor ? "yes" : ""],
-      ["Path", "path"]
+      ["名称", "name"],
+      ["引用数", "referenceCount"],
+      ["Editor", row => row.isEditor ? "是" : ""],
+      ["路径", "path"]
     ]);
     const packageRows = [
-      ...((model.packages || []).map(x => ({ kind: "package", name: x.name, detail: x.versionOrSource, source: x.source }))),
-      ...((data.filesByKind || []).map(x => ({ kind: "file", name: x.kind, detail: x.count, source: "" })))
+      ...((model.packages || []).map(x => ({ kind: "包", name: x.name, detail: x.versionOrSource, source: x.source }))),
+      ...((data.filesByKind || []).map(x => ({ kind: "文件类别", name: translateFileKind(x.kind), detail: x.count, source: "" })))
     ];
     renderTable("packages", packageRows, [
-      ["Kind", "kind"],
-      ["Name", "name"],
-      ["Detail", "detail"],
-      ["Source", "source"]
+      ["类别", "kind"],
+      ["名称", "name"],
+      ["详情", "detail"],
+      ["来源", "source"]
     ]);
   }
 
   function renderDiagnostics() {
     renderTable("diagnostics-table", data.diagnostics || [], [
-      ["Severity", "severity"],
-      ["Category", "category"],
-      ["Message", "message"],
-      ["Path", row => shortPath(row.path)]
+      ["级别", "severity"],
+      ["类别", "category"],
+      ["信息", "message"],
+      ["路径", row => shortPath(row.path)]
     ]);
     const files = data.fullDataFiles || [];
     document.getElementById("data-files").innerHTML = `<ul class="mini-list">${files.map(file => `<li><code>${escapeHtml(file)}</code></li>`).join("")}</ul>`;
   }
 
+  function renderRelationGroups(title, groups) {
+    if (!groups.length) return "";
+    return `
+      <div class="relation-groups">
+        <strong class="muted">${escapeHtml(title)}</strong>
+        ${groups.slice(0, 4).map(group => `
+          <div class="relation-group">
+            <div class="relation-group-title"><span>${escapeHtml(group.label || translateRelationKind(group.kind))}</span><span>${group.count || 0} 条</span></div>
+            <div class="chips">${(group.samples || []).slice(0, 6).map(sample => `<span class="chip ${relationTone(group.kind)}">${escapeHtml(sample.type)}${sample.count > 1 ? ` ${sample.count}` : ""}</span>`).join("")}</div>
+          </div>
+        `).join("")}
+      </div>`;
+  }
+
   function renderTable(id, rows, columns) {
     const root = document.getElementById(id);
     if (!rows.length) {
-      root.innerHTML = `<p class="empty">No data found.</p>`;
+      root.innerHTML = `<p class="empty">没有数据。</p>`;
       return;
     }
     const header = columns.map(([label]) => `<th>${escapeHtml(label)}</th>`).join("");
@@ -1224,8 +1606,51 @@ code {
     return String(path).replace(/\\/g, "/").split("/").slice(-5).join("/");
   }
 
-  function cssClass(value) {
-    return String(value || "").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+  function translateRelationKind(kind) {
+    const map = {
+      "inherits": "继承",
+      "serialized-field": "序列化字段",
+      "field": "字段引用",
+      "property": "属性引用",
+      "returns": "返回值",
+      "parameter": "参数",
+      "creates": "创建",
+      "calls": "疑似调用"
+    };
+    return map[kind] || kind || "";
+  }
+
+  function translateFileKind(kind) {
+    const map = {
+      "CSharp": "C# 源码",
+      "AssemblyDefinition": "Asmdef",
+      "CSharpProject": "C# 项目",
+      "Solution": "解决方案",
+      "UnityScene": "Unity 场景",
+      "UnityPrefab": "Unity Prefab",
+      "UnityAsset": "Unity 资源",
+      "Dll": "DLL",
+      "PackageManifest": "包清单",
+      "ProjectSettings": "项目设置",
+      "Json": "JSON",
+      "Yaml": "YAML",
+      "Other": "其他"
+    };
+    return map[kind] || kind || "";
+  }
+
+  function relationTone(kind) {
+    if (kind === "inherits") return "violet";
+    if (kind === "serialized-field") return "green";
+    if (kind === "calls" || kind === "creates") return "amber";
+    return "";
+  }
+
+  function tagTone(tag) {
+    if (tag === "MonoBehaviour" || tag === "Unity 绑定") return "green";
+    if (tag === "ScriptableObject") return "violet";
+    if (tag === "Editor") return "amber";
+    return "gray";
   }
 
   function escapeHtml(value) {

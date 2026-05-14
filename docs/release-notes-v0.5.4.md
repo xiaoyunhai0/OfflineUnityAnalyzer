@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.5.4
-
 This release improves split-project Unity layouts where source code and the Unity project live in different folders.
 
 ## Added

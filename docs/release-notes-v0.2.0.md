@@ -1,5 +1,3 @@
-# OfflineUnityAnalyzer v0.2.0
-
 This release improves the project map and offline report.
 
 ## Added
